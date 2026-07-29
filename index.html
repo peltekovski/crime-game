@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Crime Factory — Tavern Prototype</title>
+<link rel="stylesheet" href="css/style.css?v=96">
+</head>
+<body>
+<div id="game">
+  <div id="topbar"></div>
+  <div id="strip"></div>
+  <div id="body">
+    <div id="left">
+      <div id="yourdata"></div>
+      <div id="timerbox"></div>
+    </div>
+    <div id="right">
+      <div id="whereToGo"></div>
+      <div id="locationPanel"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+<div id="toast" class="toast" aria-live="polite"></div>
+<input type="file" id="fileInput" accept=".json,application/json" hidden>
+
+<!-- data -> formulas -> state -> logic -> UI. Classic scripts sharing the CF
+     global (file:// blocks fetch()/modules). -->
+<script src="data/ruleset.js?v=96"></script>
+<script src="data/materials.js?v=96"></script>
+<script src="data/recipes.js?v=96"></script>
+<script src="data/crafting.js?v=96"></script>
+<script src="data/blacksmith.js?v=96"></script>
+<script src="data/chemist.js?v=96"></script>
+<script src="data/garden.js?v=96"></script>
+<script src="data/sports.js?v=96"></script>
+<script src="data/casino.js?v=96"></script>
+<script src="data/medicine.js?v=96"></script>
+<script src="data/canteen.js?v=96"></script>
+<script src="data/harbor.js?v=96"></script>
+<script src="js/formulas.js?v=96"></script>
+<script src="js/state.js?v=96"></script>
+<script src="js/tavern.js?v=96"></script>
+<script src="js/craft.js?v=96"></script>
+<script src="js/app.js?v=96"></script>
+</body>
+</html>
