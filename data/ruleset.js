@@ -99,7 +99,7 @@ CF.ruleset = {
   built: {
     mining:            false,   // Mining location + the battery/map panel
     hospital:          false,   // Hospital, and the extra medicinal beds it unlocks
-    cottages:          false,   // Cottages and Rentsel (its gear bars already tick)
+    houseSewage:       false,   // House and sewage (its gear bars already tick)
     bankItems:         false,   // "maintain N more bank items"
     casinoCoupons:     false,   // "N more casino coupons"
     marketHandicrafts: false,   // buying handicrafts at the market
@@ -263,7 +263,7 @@ CF.ruleset = {
 
   /* What one update hands you. gearMax caps the two stealing-gear bars on the
    * account overview; hand energy has its own cap in `sports`. */
-  perUpdate: { handEnergy: 5, cottageGear: 5, rentselGear: 5, gearMax: 100 },
+  perUpdate: { handEnergy: 5, houseGear: 5, sewageGear: 5, gearMax: 100 },
 
   /* -- Capacity enforcement ------------------------------------------------
    * Raw materials and raw juice share a per-warehouse TOTAL cap that grows with
@@ -288,6 +288,9 @@ CF.ruleset = {
   // Passes through 63,367 -> 1 CC; ~0 (free) at very low reputation. Needs more readings
   // at other reputations to confirm the shape (could be a curve). Tune the anchor to rescale.
   materialPriceAnchorRep: 63367,
+  /* Never free. The linear model rounds to 0 below ~31,700 reputation, which
+   * gave a new player infinite free materials and no reason to sell anything. */
+  materialPriceMin: 1,
 
   /* -- Crafts room / market craft supplies --------------------------------
    * Unit prices in CC (= Money) read off the Craft supplies counter. You buy a

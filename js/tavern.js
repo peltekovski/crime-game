@@ -87,13 +87,19 @@ CF.tavern = (function () {
     if (!recipe) return fail("Choose a drink to make.");
     if (!isUnlocked(recipe)) return fail(recipe.name + " needs Bartending level " + recipe.unlockLevel + ".");
 
-    // need at least one of each ingredient
-    var miss = null;
+    /* Need at least one of each ingredient. Name the RIGHT remedy: a raw
+     * material is bought at the telephone, a juice is pressed at the juicer.
+     * "buy or press more first" made the player work out which one applies. */
+    var miss = null, missKind = null;
     recipe.ingredients.forEach(function (g) {
       var r = CF.graph.resolveItem(g.item);
-      if (availableOf(r) < g.qty && !miss) miss = g.item;
+      if (availableOf(r) < g.qty && !miss) { miss = g.item; missKind = r.kind; }
     });
-    if (miss) return fail("Out of " + miss + " — buy or press more first.");
+    if (miss) {
+      var how = missKind === "rawjuice" ? "press it first"
+              : missKind === "finished" ? "make it first" : "buy it first";
+      return fail("Out of " + miss + " — " + how + ".");
+    }
 
     var room = roomIn("finished");
     if (room <= 0) return fail("Ready-to-sell warehouse is full — wait for the next update to sell.");

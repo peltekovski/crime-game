@@ -217,10 +217,9 @@ CF.newAccount = function () {
       cooking: s.cooking,
     },
     inv: { materials: materials, rawJuice: rawJuice, finished: finished },
-    // Stealing gear for Cottages and Rentsel — the reference's starting values.
-    // Both refill by CF.ruleset.perUpdate.*Gear at every update.
-    cottageGear: 25,
-    rentselGear: 10,
+    // Stealing gear for House and sewage. Both refill by perUpdate.*Gear.
+    houseGear: 25,
+    sewageGear: 10,
     // Crafts room: the closet ("craft cabinet") and the backpack you carry
     // materials home from the market in.
     craft: {
@@ -295,8 +294,8 @@ CF.settleUpdates = function () {
                                    (s.sports.handEnergy || 0) + n * u.handEnergy);
     s.sports.energySlot = now;
   }
-  s.cottageGear = Math.min(u.gearMax, (s.cottageGear || 0) + n * u.cottageGear);
-  s.rentselGear = Math.min(u.gearMax, (s.rentselGear || 0) + n * u.rentselGear);
+  s.houseGear  = Math.min(u.gearMax, (s.houseGear  || 0) + n * u.houseGear);
+  s.sewageGear = Math.min(u.gearMax, (s.sewageGear || 0) + n * u.sewageGear);
   return n;
 };
 
@@ -314,10 +313,14 @@ CF.reconcileState = function () {
     fighting: CF.ruleset.start.fighting, cooking: CF.ruleset.start.cooking };
   for (var k in defs) if (defs.hasOwnProperty(k) && p[k] == null) p[k] = defs[k];
 
-  /* Stealing gear for Cottages and Rentsel. The starting values are the ones the
-   * reference's account overview showed; both fill by perUpdate.*Gear an hour. */
-  if (CF.state.cottageGear == null) CF.state.cottageGear = 25;
-  if (CF.state.rentselGear == null) CF.state.rentselGear = 10;
+  /* Stealing gear for House and sewage; both fill by perUpdate.*Gear an hour.
+   * Carries a save made before the location was renamed, so nobody loses the
+   * gear they had accrued under the old key. */
+  if (CF.state.houseGear == null)
+    CF.state.houseGear = CF.state.cottageGear != null ? CF.state.cottageGear : 25;
+  if (CF.state.sewageGear == null)
+    CF.state.sewageGear = CF.state.rentselGear != null ? CF.state.rentselGear : 10;
+  delete CF.state.cottageGear; delete CF.state.rentselGear;
 
   // crafts room (added later than v1 saves)
   var cr = CF.state.craft || (CF.state.craft = { supplies: {}, backpack: null });

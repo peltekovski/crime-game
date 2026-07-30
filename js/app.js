@@ -120,13 +120,13 @@
   // third entry = the action that opens it; absent = not built yet
   var LOC_LEFT = [
     ["Bank", "(to settle with cash)", "go-bank"], ["Sports complex", "(work out)", "go-sports"],
-    ["Cottages and Rentsel", "(steal)"], ["Tavern and Canteen", "(earn money)", "go-tavern"],
+    ["House and sewage", "(steal)"], ["Tavern and Canteen", "(earn money)", "go-tavern"],
     ["Casino", "(play gambling)", "go-casino"], ["Your house", "(many necessities)", "go-house"],
     ["Racing complex", "", "go-racing"],
   ];
   var LOC_RIGHT = [
     ["Botanical garden", "(horticulture)", "go-garden"], ["Slum", "(market and fighting)", "go-slum"],
-    ["Post office", "(communicate with others)"], ["Hospital", "(treating patients)"],
+    ["Hospital", "(treating patients)"],
     ["Harbor", "(get fish)", "go-harbor"], ["Mining", ""], ["Streets", "(dealing in drugs)", "go-streets"],
   ];
 
@@ -206,12 +206,11 @@
       // live in the debug popup's General tab.
       '<div class="topnav">' +
         '<a data-act="debug" class="live" title="Debug tools">🛠 Debug</a>' +
-        ["Account overview", "Settings", "Ranking"].map(function (l) {
+        ["Account overview", "Settings"].map(function (l) {
           return l === "Account overview"
             ? '<a data-act="account" class="live" title="Account overview">' + l + "</a>"
             : '<a title="Coming soon">' + l + "</a>"; }).join("") +
-        '<a data-act="help" class="live" title="Game guide">Help</a>' +
-        '<a class="logout" title="Placeholder">Log Out</a></div>';
+        '<a data-act="help" class="live" title="Game guide">Help</a></div>';
 
     $("strip").innerHTML = "";   // empty -> hidden by CSS, no dead space
   }
@@ -481,8 +480,39 @@
       '<div class="cols">' + col(LOC_LEFT) + col(LOC_RIGHT) + "</div></div>";
   }
 
-  /* ===================== PLACE ROUTING / ACCOUNT ======================= */
+  /* ===================== PLACE ROUTING / ACCOUNT =======================
+   * A notice belongs to the action that produced it, not to the game. Walking
+   * out of the tavern and coming back should not re-announce a drink you mixed
+   * ten minutes ago, so ARRIVING ON A DIFFERENT SCREEN wipes every notice, error
+   * and level-up banner. Re-rendering the SAME screen leaves them alone, which
+   * is what keeps a mix result on screen while you keep mixing.
+   *
+   * Matched by NAME rather than listed one by one, so a notice added later is
+   * covered without anyone remembering to come back here. The two modal-scoped
+   * errors are exempt: they belong to a popup, not to a screen. */
+  var NOTICE_RE = /(Notice|Error|Errors|LevelUp)$/;
+  var NOTICE_EXEMPT = { welcomeError: 1, nameError: 1 };
+  function clearScreenNotices() {
+    for (var k in ui) if (!NOTICE_EXEMPT[k] && NOTICE_RE.test(k)) ui[k] = null;
+    /* The ones the naming rule cannot catch. `lastMix` is what makes the tavern
+     * say "You made drinks and earned N points" — it is a per-tool record rather
+     * than a field called *Notice, which is exactly why it outlived every other
+     * banner and kept greeting you on the way back in. */
+    ui.lastMix = {};
+    ui.lastUpdate = null;
+    ui.gardenPtsMsg = null; ui.gardenBackpackBar = false;
+  }
+  /* Everything that counts as "where you are standing". Sub-tabs are in here
+   * too: opening a different tool in the tavern is leaving the last one. */
+  function screenKey() {
+    return [ui.place, ui.houseView || "", ui.tool || "", ui.sportsFac || "",
+            ui.gardenTab || "", ui.medView || "", ui.canRoom || "", ui.hbView || "",
+            ui.slumCounter || "", (CF.state.casino && CF.state.casino.game) || ""].join("|");
+  }
+
   function renderPlace() {
+    var here = screenKey();
+    if (here !== ui.screenAt) { clearScreenNotices(); ui.screenAt = here; }
     renderSidebar();   // the highlighted skill depends on where you are
     if (ui.place === "account") renderAccount();
     else if (ui.place === "house") renderHouse();
@@ -1096,7 +1126,7 @@
         '<tr><td><input type="number" id="juicerQty" data-role="juicerqty" min="1" value="' + esc(ui.juicerQty) + '"></td>' +
         '<td><select id="juicerPlant" data-role="juicerplant">' + opts + "</select></td></tr></table>" +
         '<div class="cbtn"><button class="btn" data-act="chem-press">Make juice from plants</button></div>' +
-        '<p class="nb"><b>NB!</b> You can steal plants from the <a data-act="go-garden">botanical garden greenhouse</a>.</p>' +
+        '<p class="nb"><b>NOTE!</b> You can steal plants from the <a data-act="go-garden">botanical garden greenhouse</a>.</p>' +
       "</div>" +
       '<div class="st-right">' + chemJuicesHtml(false) + "</div></div>" + craftFooter();
   }
@@ -1263,7 +1293,7 @@
     return have("fishing", "Ship's crew") + have("defense", "Ship's crew") +
       hireBlock("fishing", "Hire a fishing crew", "Required general ship level") +
       hireBlock("defense", "Hire a defense team", "Required ship armament") +
-      '<p class="hb-nb"><b>NB!</b> If the ship is not in port at the time of hiring/dismissing the crew, ' +
+      '<p class="hb-nb"><b>NOTE!</b> If the ship is not in port at the time of hiring/dismissing the crew, ' +
         "the changes will take effect after the ship arrives in port.</p>";
   }
   function crewIcon(tier) {
@@ -1316,7 +1346,7 @@
       "<li>An hour of a vegetarian dish costs <b>" + c.vegFruitPerHour + "</b> of each fruit and <b>" +
         c.vegDairyPerHour + "</b> liters of dairy; a fish dish costs <b>" + c.fishPerHour + "</b> kg of fish, <b>" +
         c.fishFruitPerHour + "</b> fruit and <b>" + c.fishDairyPerHour + "</b> liters of dairy.</li>" +
-      "</ol><p><b>NB!</b> Container sizes grow as your Cooking level does.</p></div>";
+      "</ol><p><b>NOTE!</b> Container sizes grow as your Cooking level does.</p></div>";
   }
   function canteenNoticeHtml() {
     return noticeHtml({ err: ui.canError, msg: ui.canNotice, errLabel: "ERROR!", nums: true,
@@ -1414,7 +1444,7 @@
         '<select id="canDairy" data-role="candairy">' + prod + "</select>" +
         '<div class="cbtn"><button class="btn" data-act="can-brew">Prepare the selected product</button></div></div>' +
       '<div class="can-foot">Find out <a data-act="can-help">HERE</a> how to increase the size of your dairy product containers!</div>' +
-      '<div class="can-foot"><b>NB!</b> You can brew up to <b>' + CF.ruleset.canteen.brewMax + "</b> liters at a time.</div>";
+      '<div class="can-foot"><b>NOTE!</b> You can brew up to <b>' + CF.ruleset.canteen.brewMax + "</b> liters at a time.</div>";
   }
 
   function granaryRoom() {
@@ -1491,7 +1521,7 @@
         '<select id="canHours" data-role="canhours">' + hourOpts(ui.canHours) + "</select> " +
         '<button class="btn" data-act="' + (isFish ? "can-cook-fish" : "can-cook-veg") + '">Prepare food</button></td></tr></table>' +
       cookProgTable() +
-      '<p class="nb c"><b class="r">NB!</b> <a data-act="' + (isFish ? "fish-book" : "veg-book") + '">' +
+      '<p class="nb c"><b class="r">NOTE!</b> <a data-act="' + (isFish ? "fish-book" : "veg-book") + '">' +
         (isFish ? "Read the fish food recipe book" : "Read the vegetarian recipe book") + "</a></p>";
   }
 
@@ -1592,7 +1622,7 @@
   }
   function medHeader(extra) { return houseRoomHeaderN(5, extra); }
   function medHelpLink() {
-    return '<p class="nb c"><b class="r">NB!</b> <a data-act="med-help">Read the tutorial on developing medical science!</a></p>';
+    return '<p class="nb c"><b class="r">NOTE!</b> <a data-act="med-help">Read the tutorial on developing medical science!</a></p>';
   }
 
   function renderMedWarehouse() {
@@ -1692,7 +1722,7 @@
         '<div class="cbtn"><button class="btn" data-act="drug-mix">Mix these ingredients together</button></div>' +
         '<p class="street-link"><a data-act="go-streets">Go straight to the street &raquo;</a></p>' +
         '<div id="chemProg">' + chemProgressTable() + "</div>" +
-        '<p class="nb"><b>NB!</b> Be sure to also check out the <a data-act="chem-help">Chemist skill help page</a>!</p>' +
+        '<p class="nb"><b>NOTE!</b> Be sure to also check out the <a data-act="chem-help">Chemist skill help page</a>!</p>' +
       "</div>" + craftFooter();
   }
 
@@ -1979,7 +2009,7 @@
     var head = '<div class="bar2">What medicinal herbs do you want to grow?</div>';
     if (!keys.length) {
       return head + '<div class="med-box"><div class="med-none">You have no seeds to sow!</div>' +
-        '<div class="nb"><b>NB!</b> Seeds can be <a data-act="garden-tab" data-tab="greenhouse">stolen from the greenhouse</a>.</div></div>';
+        '<div class="nb"><b>NOTE!</b> Seeds can be <a data-act="garden-tab" data-tab="greenhouse">stolen from the greenhouse</a>.</div></div>';
     }
     if (free <= 0) {
       return head + '<div class="med-box"><div class="med-none">All your medicinal plant beds are in use!</div>' +
@@ -2077,7 +2107,7 @@
     var head = '<div class="bar2">Sow seeds</div>';
     if (!keys.length) {
       return head + '<div class="med-box"><div class="med-none">You have no seeds to sow!</div>' +
-        '<div class="nb"><b>NB!</b> Seeds can be <a data-act="garden-tab" data-tab="greenhouse">stolen from the greenhouse</a>.</div></div>';
+        '<div class="nb"><b>NOTE!</b> Seeds can be <a data-act="garden-tab" data-tab="greenhouse">stolen from the greenhouse</a>.</div></div>';
     }
     var free = CF.garden.plotCapacity() - CF.garden.plots().length;
     if (free <= 0) {
@@ -2225,7 +2255,7 @@
       '<div class="run-title">Choose running time:</div>' + opts +
       '<p class="nb">Running finishes on the update, so the first hour is short by however far into this one you set off.</p>' +
       '<div class="sure"><label>Are you using steroids? <input type="checkbox" id="runSteroids" data-role="runsteroids"' + (ui.runSteroids ? " checked" : "") + "></label></div>" +
-      '<p class="nb"><b>NB!</b> Using steroids will give you 2x more points!</p>' +
+      '<p class="nb"><b>NOTE!</b> Using steroids will give you 2x more points!</p>' +
       '<div class="cbtn"><button class="btn" data-act="sports-run">Go for a run.</button></div>';
   }
   function gymPanel() {
@@ -2239,7 +2269,7 @@
           '<span class="lmeta">( -' + l.energy + " energy = " + fmt(l.points) + " points )</span></div>";
       }).join("") + "</div>" +
       '<div class="eat"><a data-act="sports-steroid">Eat 1 steroid and restore ' + CF.ruleset.sports.steroidEnergy + " arm energy!</a></div>" +
-      '<p class="nb"><b>NB!</b> Hand energy recovers ' + CF.ruleset.perUpdate.handEnergy + " points at every update!</p>";
+      '<p class="nb"><b>NOTE!</b> Hand energy recovers ' + CF.ruleset.perUpdate.handEnergy + " points at every update!</p>";
   }
   /* Lifting updates only the numbers that changed — rebuilding the whole panel
    * made the lift rows visibly flash on every click. */
@@ -2581,7 +2611,7 @@
           '<td class="q">' + fmt(q) + ' <span class="lvl">fruit</span></td>' +
           '<td class="pr">' + fmt(fee) + ' <span class="cc">CC</span></td></tr>';
       }).join("");
-      body = '<div class="cul-nb"><b>NB!</b> You exchange <b>' + esc(give.name) + "</b> for the same number of <b>" +
+      body = '<div class="cul-nb"><b>NOTE!</b> You exchange <b>' + esc(give.name) + "</b> for the same number of <b>" +
           esc(sel) + "</b> — both are level <b>" + f.lvl + "</b> — and pay a <b>brokerage fee</b> on top." +
           ' <span class="cul-have">You have <b>' + fmt(have) + "</b> " + esc(give.name) + ".</span></div>" +
         '<table class="medtbl cul-tbl"><tr class="sect"><th class="rad"></th><th>Product</th>' +
@@ -2791,9 +2821,9 @@
           { act: "acc-sports", fac: "gym", html: "Your power is <b>" + fmt(CF.sports.power().level) + "</b>, endurance <b>" + fmt(CF.sports.durability().level) + "</b>" }]) +
         (showGarden ? box("Botanical Garden information", gardenAccRows()) : "") +
       "</div><div>" +
-        (B.cottages ? box("Cottages and Rentsel info", [
-          gearLine("Cottage gear", CF.state.cottageGear),
-          gearLine("Rentsel gear", CF.state.rentselGear)]) : "") +
+        (B.houseSewage ? box("House and sewage info", [
+          gearLine("House gear", CF.state.houseGear),
+          gearLine("Sewage gear", CF.state.sewageGear)]) : "") +
         (B.hospital ? box("Hospital information", [
           "The hospital is currently NOT being upgraded.",
           "The hospital's debt to staff is <b>0</b> CC",
@@ -2811,7 +2841,7 @@
           B.marketMedical     ? ["You can still buy <b>10,000</b> medical supplies from the market"] : []
         )) +
       "</div></div>" +
-      '<p class="acc-note"><b>NB!</b> More panels appear here as you unlock new parts of the game.</p>' +
+      '<p class="acc-note"><b>NOTE!</b> More panels appear here as you unlock new parts of the game.</p>' +
       '<p class="acc-note">Click any highlighted line to jump straight to that part of the game.</p></div>';
   }
 
@@ -2938,7 +2968,7 @@
           "<p>Every update:</p>" +
           gList([
             "your hand energy goes up <b>+" + u.handEnergy + "</b>, to a maximum of " + fmt(CF.ruleset.sports.handEnergyMax),
-            "cottage gear and rentsel gear each go up <b>+" + u.cottageGear + "</b>, to a maximum of " + u.gearMax,
+            "house gear and sewage gear each go up <b>+" + u.houseGear + "</b>, to a maximum of " + u.gearMax,
             "the garden's watering allowance comes back, <b>" + g.waterPerHour + "</b> plants an hour, and moisture drops a point"]) +
           "<p><b>The tavern runs on its own faster clock.</b> Customers arrive every <b>" + mins + " minutes</b>, so " +
           "you get " + Math.round(3600 / CF.ruleset.tavernIntervalSec) + " waves of trade between one update and the next.</p>" +
@@ -3184,9 +3214,8 @@
     { group: "Coming later", items: [
       { id: "Mining", name: "Mining", soon: "Mining will supply <b>Uranium</b> for the crafts room's furnaces and <b>Charcoal</b>, neither of which has any source at the moment. That is why a few of the later recipes cannot be finished yet. The account overview already has a Mining panel sitting there waiting for it." },
       { id: "hospital", name: "Hospital", soon: "The hospital will treat patients using the first aid kits the medicine laboratory packs. It is also what unlocks <b>extra medicinal beds</b> in the garden beyond the first three." },
-      { id: "cottages", name: "Cottages and Rentsel", soon: "A stealing location. The <b>cottage gear</b> and <b>rentsel gear</b> bars on the account overview already fill up at every update, ready for whenever it arrives." },
+      { id: "houseSewage", name: "House and sewage", soon: "A stealing location. The <b>house gear</b> and <b>sewage gear</b> bars on the account overview already fill up at every update, ready for whenever it arrives." },
       { id: "garage", name: "Garage", soon: "House room 3, for cars and spare parts. It is also what the Racing complex is waiting on, since racing needs both a garage and a car." },
-      { id: "post", name: "Post office", soon: "Messaging between players. Since this build is single player, it is low priority." },
       { id: "market", name: "Player market", soon: "<b>Deliberately excluded</b>, along with credits and VIP memberships. The market counters that remain all trade with the game rather than with other players." },
     ] },
   ];

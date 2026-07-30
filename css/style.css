@@ -1967,6 +1967,15 @@ select:focus-visible,
   .topnav { flex-wrap: wrap; justify-content: flex-end; row-gap: 2px; }
 }
 
+/* The wide fixed-width tables stop fitting well BEFORE the layout stacks at
+   720px: the sidebar takes 210px of the frame, so the bank's 560px table needs
+   about 790px of window. Between 721 and 860 the page was pushed sideways.
+   Let the panel scroll its own table instead of squashing it — a data table
+   with columns of numbers reads better scrolled than crushed. */
+@media (max-width: 860px) {
+  .panel { overflow-x: auto; }
+}
+
 @media (max-width: 720px) {
   /* #body switches to a column here; flex:1 does NOT constrain width in a
      column, so #right kept its intrinsic (desktop) width and overflowed */

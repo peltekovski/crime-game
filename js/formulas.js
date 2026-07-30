@@ -214,9 +214,13 @@ CF.formulas = {
   /* == Telephone raw-material buy price — scales WITH tavern reputation
    * (official docs: cheap/free at rep 0, higher when famous). Linear model
    * anchored to the one known reading (rep 63,367 -> 1 CC). */
+  /* Floored at materialPriceMin: the linear model rounds to 0 below about half
+   * the anchor reputation, which handed a brand-new player unlimited free
+   * materials — the one thing that would have made the opening loop pointless. */
   materialPrice: function (rep) {
     var r = CF.ruleset;
-    return Math.max(0, Math.round(Math.max(0, rep) * r.materialPriceCC / r.materialPriceAnchorRep));
+    return Math.max(r.materialPriceMin,
+                    Math.round(Math.max(0, rep) * r.materialPriceCC / r.materialPriceAnchorRep));
   },
 };
 
