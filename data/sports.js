@@ -101,16 +101,11 @@ CF.sports = (function () {
   function equip(name) { return S().equipment[name] || 0; }
   function maxHandEnergy() { return CF.ruleset.sports.handEnergyMax; }
 
-  /* Hand energy regenerates in real time (+5/hour by default). */
-  function regenEnergy() {
-    var now = Date.now(), last = S().energyAt || now;
-    var perMs = CF.ruleset.sports.handEnergyPerHour / 3600000;
-    var gain = (now - last) * perMs;
-    if (gain >= 1) {
-      S().handEnergy = Math.min(maxHandEnergy(), (S().handEnergy || 0) + Math.floor(gain));
-      S().energyAt = now;
-    } else if (!S().energyAt) S().energyAt = now;
-  }
+  /* Hand energy arrives WITH THE UPDATE, not as a trickle: +5 lands on the hour
+   * along with everything else the update pays. CF.settleUpdates owns that (it
+   * pays the gear bars in the same pass); this stays as the name the sports
+   * screens already call. */
+  function regenEnergy() { CF.settleUpdates(); }
 
   /* Access per facility: shop/gym/trail are always open; the other two need a pass. */
   function access(id) {
@@ -140,7 +135,10 @@ CF.sports = (function () {
     S().equipment["Running boots"] -= opt.boots;
     var pts = opt.points;
     if (useSteroids) { S().equipment["Steroids"] -= 1; pts *= CF.ruleset.sports.steroidMultiplier; }
-    S().run = { endsAt: Date.now() + hours * 3600000, hours: hours, points: pts, steroids: !!useSteroids };
+    /* The hours are UPDATES, not a stopwatch: a 1-hour run started at 16:30
+     * finishes at the 17:00 update, a 2-hour one at 18:00. So the first hour is
+     * short by however far into the current hour you set off. */
+    S().run = { endsAt: CF.clock.slotsAhead(hours), hours: hours, points: pts, steroids: !!useSteroids };
     return ok("You started endurance training.");
   }
   /* Pause = abandon. Equipment and steroids are NOT refunded (per the reference). */

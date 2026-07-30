@@ -35,7 +35,7 @@ CF.ruleset = {
     durability:       27,
     fighting:         0,          // shown as 0.00 on a fresh account
     weaponHandling:   1, protection: 10, power: 10, speed: 10, skill: 10,
-    cooking:          1, medicalScience: 1, mining: 1, warfare: 10,
+    cooking:          1, medicalScience: 1, mining: 1,
     // Warehouses start EMPTY on a fresh account.
     fillFraction:     0,
     startFinished:    {},
@@ -68,8 +68,6 @@ CF.ruleset = {
    * chips in hand, 99,200 typed into the exchange box = a round 100,000).
    * defaultBet 100 is the value the reference pre-fills. */
   casino: { tokenRate: 1, defaultBet: 100, slotBets: [100, 1000, 10000] },
-  /* Barracks is gated on Durability, not house level, and then costs money. */
-  barracks: { reqDurability: 30, priceCC: 50000 },
 
   /* -- Slum area passes, sold at the market's Ticket counter. The counter's own
    * prices weren't captured, so these are PLACEHOLDERS — swap them for the real
@@ -89,6 +87,24 @@ CF.ruleset = {
   /* Rankings are meaningless single-player; the code stays, gated on this flag,
    * ready for when accounts exist. */
   showLeaderboards: false,
+
+  /* -- WHICH SYSTEMS EXIST -------------------------------------------------
+   * Anything that ADVERTISES a feature (the account overview's panels, mostly)
+   * reads these first. A panel for something unbuilt is HIDDEN, never deleted:
+   * flip the flag the day the system lands and the panel comes back exactly as
+   * it was, with its rows and its wiring intact. Same trick as showLeaderboards.
+   *
+   * Keep the numbers those panels quote as they are — they were read off the
+   * reference and are the spec for building the thing later. */
+  built: {
+    mining:            false,   // Mining location + the battery/map panel
+    hospital:          false,   // Hospital, and the extra medicinal beds it unlocks
+    cottages:          false,   // Cottages and Rentsel (its gear bars already tick)
+    bankItems:         false,   // "maintain N more bank items"
+    casinoCoupons:     false,   // "N more casino coupons"
+    marketHandicrafts: false,   // buying handicrafts at the market
+    marketMedical:     false,   // buying medical supplies at the market
+  },
 
   /* -- Chemist / Drug lab (room 2). juicePerPlant: 50 Yam plants → 200 ml (screenshot).
    * beltCapacity: the drug belt held 84 g in the screenshot ("fame allows 86 g" — the
@@ -218,10 +234,7 @@ CF.ruleset = {
   fameFormulas: {
     sq9:  ["Crafting", "Bartending", "Chemist", "Medical science", "Blacksmithing", "Weapon handling", "Gardening"],
     sq3:  ["Stealing", "Cooking"],
-    // Warfare isn't in the official list; the reference breakdown shows it
-    // contributing a tiny amount at level 10, so it uses the (level-9)² shape
-    // rather than the level²·9 default (which would wrongly give it 900).
-    sq3m9: ["Speed", "Power", "Skill", "Protection", "Warfare"],   // (level-9)²·3
+    sq3m9: ["Speed", "Power", "Skill", "Protection"],   // (level-9)²·3
     sq3m5: ["Durability"],                              // (level-5)²·3
   },
 
@@ -229,12 +242,28 @@ CF.ruleset = {
    * Buying raw materials costs CREDITS (CC). Selling drinks (auto, on each
    * update) earns MONEY. Credits deplete as you buy; Money grows from sales. */
 
-  /* -- The tavern "update" cycle -------------------------------------------
-   * Every updateIntervalSec, clients arrive and buy drinks automatically (see
-   * tavern.runUpdate). The real game uses ~10 min; shortened here so the loop
-   * is observable while testing. Each fire = one "per 10 min" business cycle.
-   * Back to the real 10 minutes — the "run update now" debug button covers testing. */
-  updateIntervalSec: 600,
+  /* -- TWO CLOCKS ----------------------------------------------------------
+   * They are NOT the same tick, and mixing them up makes the tavern six times
+   * too slow:
+   *
+   *   updateIntervalSec 3600 — THE UPDATE. One world-wide tick on the hour, on
+   *     the wall clock (see CF.clock): at 16:30 the next is at 17:00. Hand energy
+   *     and the cottage/rentsel gear top up, the garden's watering allowance
+   *     comes back, and anything timed in "hours" counts down by one.
+   *
+   *   tavernIntervalSec 600 — THE TAVERN. Customers arrive every 10 minutes,
+   *     also aligned to the clock (:00, :10, :20 …), and buy drinks
+   *     automatically. Six of these per update. This is why the throughput
+   *     curve is called clientsPer10Min.
+   *
+   * Both countdowns are read off the clock, never from an interval the page
+   * started when it happened to load. */
+  updateIntervalSec: 3600,
+  tavernIntervalSec: 600,
+
+  /* What one update hands you. gearMax caps the two stealing-gear bars on the
+   * account overview; hand energy has its own cap in `sports`. */
+  perUpdate: { handEnergy: 5, cottageGear: 5, rentselGear: 5, gearMax: 100 },
 
   /* -- Capacity enforcement ------------------------------------------------
    * Raw materials and raw juice share a per-warehouse TOTAL cap that grows with
@@ -421,7 +450,7 @@ CF.ruleset = {
       ["Fighting", "0.00"], ["Weapon handling", "1"], ["Protection", "10"],
       ["Power", "10"], ["Speed", "10"], ["Skill", "10"], ["Cooking", "1"],
       ["Gardening", "1"], ["Stealing", "1"], ["Chemist", "1"], ["Crafting", "1"],
-      ["Blacksmithing", "1"], ["Medical science", "1"], ["Mining", "1"], ["Warfare", "10"],
+      ["Blacksmithing", "1"], ["Medical science", "1"], ["Mining", "1"],
     ],
   },
 };

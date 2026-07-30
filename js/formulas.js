@@ -7,6 +7,52 @@
  * ========================================================================== */
 window.CF = window.CF || {};
 
+/* ============================================================================
+ * THE WORLD CLOCK
+ * ----------------------------------------------------------------------------
+ * Everything in the game ticks on the hour, TOGETHER — the reference calls that
+ * tick "the update". It lands on :00, not an hour after whatever you last did,
+ * so at 16:30 the next update is 30 minutes away rather than 60.
+ *
+ * That makes every duration the player picks a count of UPDATES, not a stopwatch:
+ * a "1 hour" forest-trail run started at 16:30 finishes at the 17:00 update, and
+ * a 2-hour one at 18:00. The garden's watering allowance already worked this way
+ * (data/garden.js hourSlot); this is the same idea, shared, so the trail, the
+ * timer box, hand energy and the cottage gear all move on the same beat.
+ *
+ * `slot` is that beat: whole hours since the epoch. Same slot = same update, and
+ * slot(b) - slot(a) is exactly how many updates fired in between.
+ *
+ * THE TAVERN RUNS FASTER. Customers arrive every 10 minutes, not every hour, so
+ * it has its own slot on the same wall clock (:00, :10, :20 …) — six waves per
+ * update. The tavern* helpers below are that second beat; everything else in the
+ * game is on the hourly one.
+ * ========================================================================== */
+CF.clock = {
+  slot: function (t) { return Math.floor((t == null ? Date.now() : t) / 3600000); },
+  /* When the next update lands (ms since epoch). */
+  nextAt: function (t) { return (this.slot(t) + 1) * 3600000; },
+  /* Seconds until it lands — what the "Time until the update" box counts down. */
+  secondsToNext: function (t) {
+    if (t == null) t = Date.now();
+    return Math.max(0, Math.ceil((this.nextAt(t) - t) / 1000));
+  },
+  /* The moment `n` updates from now — how a duration in hours becomes a finish
+   * time. n = 1 at 16:30 gives 17:00, n = 2 gives 18:00. */
+  slotsAhead: function (n, t) { return (this.slot(t) + n) * 3600000; },
+  /* How many updates fired between two moments. */
+  between: function (from, to) { return Math.max(0, this.slot(to) - this.slot(from)); },
+
+  /* ---- The tavern's 10-minute wave, on the same wall clock ---- */
+  tavernMs: function () { return CF.ruleset.tavernIntervalSec * 1000; },
+  tavernSlot: function (t) { return Math.floor((t == null ? Date.now() : t) / this.tavernMs()); },
+  tavernNextAt: function (t) { return (this.tavernSlot(t) + 1) * this.tavernMs(); },
+  tavernSecondsToNext: function (t) {
+    if (t == null) t = Date.now();
+    return Math.max(0, Math.ceil((this.tavernNextAt(t) - t) / 1000));
+  },
+};
+
 /* ---- Name indexes over the recipe graph -------------------------------- */
 CF.recipeByName = {};
 CF.recipes.forEach(function (r) { CF.recipeByName[r.name] = r; });
@@ -78,7 +124,7 @@ CF.formulas = {
     return waves;
   },
   drinkContinuesSeconds: function (drinks, rep, level) {
-    return this.drinkContinuesWaves(drinks, rep, level) * CF.ruleset.updateIntervalSec;
+    return this.drinkContinuesWaves(drinks, rep, level) * CF.ruleset.tavernIntervalSec;
   },
 
   /* == Lifetime XP needed to REACH a level (cumulative) — inverse of the

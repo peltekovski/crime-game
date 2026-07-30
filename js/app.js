@@ -55,7 +55,11 @@
     q: { tel: 1000, j1: 500 },
     telMat: "", j1Mat: "", mix: {}, calc: {},
     lastUpdate: null, lastMix: {}, mixLevelUp: null,
-    timer: CF.ruleset.updateIntervalSec,
+    /* Seconds to the next update / the next tavern wave. NOT countdowns we own —
+     * both are re-read from the wall clock every tick, so reloading the page
+     * mid-hour resumes at the right number instead of starting a fresh one. */
+    timer: CF.clock.secondsToNext(),
+    tavernTimer: CF.clock.tavernSecondsToNext(),
   };
   var skillPopEl = null;
   function hideSkillPop() { if (skillPopEl) skillPopEl.style.display = "none"; }
@@ -90,7 +94,6 @@
     "Chemist":         { where: "the Drug lab", act: "go-druglab" }, "Blacksmithing": { where: "the Blacksmith", act: "go-anvil" },
     "Medical science": { where: "the Packing table", act: "go-medpacking" },
     "Mining":          { where: "Mining" },
-    "Warfare":         { where: "the Barracks" },
   };
 
   /* Which skill the place you're standing in trains — that row lights up. */
@@ -116,13 +119,13 @@
 
   // third entry = the action that opens it; absent = not built yet
   var LOC_LEFT = [
-    ["Kampa Headquarters", ""], ["Bank", "(to settle with cash)", "go-bank"], ["Sports complex", "(work out)", "go-sports"],
+    ["Bank", "(to settle with cash)", "go-bank"], ["Sports complex", "(work out)", "go-sports"],
     ["Cottages and Rentsel", "(steal)"], ["Tavern and Canteen", "(earn money)", "go-tavern"],
     ["Casino", "(play gambling)", "go-casino"], ["Your house", "(many necessities)", "go-house"],
     ["Racing complex", "", "go-racing"],
   ];
   var LOC_RIGHT = [
-    ["Barracks", "(conquer)", "go-barracks"], ["Botanical garden", "(horticulture)", "go-garden"], ["Slum", "(market and fighting)", "go-slum"],
+    ["Botanical garden", "(horticulture)", "go-garden"], ["Slum", "(market and fighting)", "go-slum"],
     ["Post office", "(communicate with others)"], ["Hospital", "(treating patients)"],
     ["Harbor", "(get fish)", "go-harbor"], ["Mining", ""], ["Streets", "(dealing in drugs)", "go-streets"],
   ];
@@ -162,13 +165,11 @@
     ["Drug belt counter", ["new", "used"]],
     ["Car parts counter", ["new", "used"]],
     ["Craft supplies counter", ["new"]],
-    ["Crafting counter", ["used"]],
     // "for credit" options are omitted — Credits are premium and unused in this build
     ["Bank items counter", ["for money"]],
     ["Chemist's juice counter", ["used"]],
     ["Greenhouse ticket counter", ["new"]],
     ["Medical supplies counter", ["new"]],
-    ["Firearms counter", ["used"]],
     ["Cold weapons counter", ["used"]],
     ["Body armor counter", ["used"]],
     ["Ticket counter", ["new"]],
@@ -188,16 +189,18 @@
   function num(id, dflt) { var v = $(id); if (!v) return dflt; var n = parseInt(v.value, 10); return isNaN(n) ? dflt : n; }
 
   /* ============================ TOP BAR ================================= */
-  var SKYLINE =
-    '<svg class="sky" viewBox="0 0 46 34" xmlns="http://www.w3.org/2000/svg"><g fill="#8a97a4">' +
-    '<rect x="1" y="14" width="6" height="20"/><rect x="8" y="8" width="6" height="26"/>' +
-    '<rect x="15" y="18" width="5" height="16"/><rect x="21" y="4" width="6" height="30"/>' +
-    '<rect x="28" y="12" width="5" height="22"/><rect x="34" y="20" width="5" height="14"/>' +
-    '<rect x="40" y="10" width="5" height="24"/></g></svg>';
+
+  /* The interface scale in force (see the INTERFACE SCALE block in style.css —
+   * it is automatic, by viewport). getBoundingClientRect returns ALREADY-ZOOMED
+   * coordinates, so anything positioned from one has to divide this back out. */
+  function uiZoom() {
+    var z = parseFloat(getComputedStyle(document.body).zoom);
+    return z > 0 ? z : 1;
+  }
 
   function renderTop() {
     $("topbar").innerHTML =
-      '<div class="logo" data-act="account" title="Account overview" style="cursor:pointer">' + SKYLINE +
+      '<div class="logo" data-act="account" title="Account overview">' +
         '<span class="title">Crime&nbsp;Factory</span></div>' +
       // Debug sits first, styled like the rest of the nav; Save/Load/Reset now
       // live in the debug popup's General tab.
@@ -207,6 +210,7 @@
           return l === "Account overview"
             ? '<a data-act="account" class="live" title="Account overview">' + l + "</a>"
             : '<a title="Coming soon">' + l + "</a>"; }).join("") +
+        '<a data-act="help" class="live" title="Game guide">Help</a>' +
         '<a class="logout" title="Placeholder">Log Out</a></div>';
 
     $("strip").innerHTML = "";   // empty -> hidden by CSS, no dead space
@@ -215,6 +219,7 @@
   /* ============================ SIDEBAR ================================= */
   function renderSidebar() {
     hideSkillPop();
+    CF.settleUpdates();   // pay any updates that landed while we weren't looking
     var p = CF.state.player, c = CF.ruleset.cosmeticStats;
     function srow(ico, k, v, o) {
       o = o || {};
@@ -234,7 +239,8 @@
 
     var durLvl = CF.sports.durability().level;
     var rows =
-      srow("👤", "Name", esc(p.name)) + srow("⭐", "Fame", fmt(totalFame()), { skill: "Fame" }) +
+      srow("👤", "Name", esc(p.name), { act: "name-edit", cls: "clickable", vcls: "nameval" }) +
+      srow("⭐", "Fame", fmt(totalFame()), { skill: "Fame" }) +
       '<div class="srow sep"></div>' +   // breathing room before the stat block
       srow("🛡️", "Durability", fmt(durLvl) + " / " + fmt(durLvl),
         { cls: lit0() === "Durability" ? "hl" : "", skill: "Durability" });
@@ -242,7 +248,7 @@
     var icons = { "Fighting": "🥊", "Weapon handling": "🔫", "Protection": "🦺", "Power": "💪",
       "Speed": "⚡", "Skill": "🎯", "Cooking": "🍳", "Gardening": "🌱", "Stealing": "🕵️",
       "Chemist": "⚗️", "Crafting": "🔨", "Blacksmithing": "🔥", "Medical science": "⚕️",
-      "Mining": "⛏️", "Warfare": "⚔️" };
+      "Mining": "⛏️" };
     // the skill trained where you're standing is the highlighted one
     var lit = activeSkill();
     c.rows.forEach(function (r) {
@@ -250,7 +256,6 @@
         rows += srow("🍺", "Bartending", fmt(p.drinkMasterLevel),
           { cls: lit === "Bartending" ? "hl" : "", skill: "Bartending" });
       }
-      var badge = r[0] === "Warfare" ? ' <span class="badge">NEW</span>' : "";
       var val = r[0] === "Crafting" ? fmt(CF.craft.progress().level)
               : r[0] === "Blacksmithing" ? fmt(CF.blacksmith.forgingProgress().level)
               : r[0] === "Chemist" ? fmt(CF.chemist.progress().level)
@@ -260,7 +265,7 @@
               : r[0] === "Medical science" ? fmt(CF.medicine.progress().level)
               : r[0] === "Cooking" ? fmt(CF.canteen.progress().level)
               : r[0] === "Fighting" ? fightingValue() : r[1];
-      rows += srow(icons[r[0]] || "•", r[0] + badge, val,
+      rows += srow(icons[r[0]] || "•", r[0], val,
         { cls: lit === r[0] ? "hl" : "", skill: r[0] });
     });
     rows += '<div class="srow sep"></div>';
@@ -292,8 +297,11 @@
         '<div class="bp-item"><a data-act="craft-cabinet">' + esc(bp.item) + " (" + fmt(bp.qty) + ")</a></div></div></div>";
     }
     $("yourdata").innerHTML = '<div class="panel ydata"><div class="bar">Your data</div><div class="rows">' + rows + "</div></div>" + bpHtml;
+    /* The update is a wall-clock event on the hour, so the box names the hour it
+     * lands on — otherwise a countdown that starts at 43:07 looks like a bug. */
     $("timerbox").innerHTML = '<div class="panel timer"><div class="bar">Time until the update</div>' +
-      '<div class="val" id="timerVal">' + mmss(ui.timer) + "</div></div>";
+      '<div class="val" id="timerVal">' + mmss(ui.timer) + "</div>" +
+      '<div class="timer-at">at <b id="timerAt">' + hhmm(CF.clock.nextAt()) + "</b></div></div>";
   }
 
   /* Skill hover panel (level, XP progress, fame, mini-ranking).
@@ -330,7 +338,6 @@
     add("🍳", "Cooking", CF.canteen.progress().level);
     add("⚕️", "Medical science", CF.medicine.progress().level);
     add("⛏️", "Mining", 1);
-    add("⚔️", "Warfare", 10);
     return out;
   }
   /* Fame is the SUM of every skill's fame contribution (confirmed: a 2,830-fame
@@ -440,6 +447,12 @@
   function mmss(s) { var m = Math.floor(s / 60), r = s % 60; return m + ":" + (r < 10 ? "0" : "") + r; }
   function hms(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
     return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (x < 10 ? "0" : "") + x; }
+  /* Wall-clock HH:MM for a timestamp — the update lands on clock times, so the
+   * screens that talk about it show clock times. */
+  function hhmm(ms) {
+    var d = new Date(ms);
+    return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
+  }
   function fmtkg(n) { if (typeof n !== "number" || !isFinite(n)) return String(n);
     return (Math.round(n * 10) / 10).toLocaleString("en-US", { maximumFractionDigits: 1 }); }
 
@@ -450,7 +463,8 @@
     if (!p.tavernOpen) return 0;
     var total = 0; CF.finishedNames.forEach(function (n) { total += CF.state.inv.finished[n] || 0; });
     var w = CF.formulas.drinkContinuesWaves(total, p.reputation, p.drinkMasterLevel);
-    return w <= 0 ? 0 : (w - 1) * CF.ruleset.updateIntervalSec + ui.timer;
+    // waves are 10 minutes apart, not an hour — the tavern has its own clock
+    return w <= 0 ? 0 : (w - 1) * CF.ruleset.tavernIntervalSec + (ui.tavernTimer || CF.clock.tavernSecondsToNext());
   }
 
   /* ========================== WHERE TO GO ============================== */
@@ -477,7 +491,6 @@
     else if (ui.place === "bank") renderBank();
     else if (ui.place === "casino") houseGate("casino", "Casino", "Your house must be at least level ") || renderCasino();
     else if (ui.place === "racing") houseGate("racing", "Racing complex", "To reach the racing complex your house must be at least level ") || renderRacing();
-    else if (ui.place === "barracks") renderBarracks();
     else if (ui.place === "garden") houseGate("garden", "Botanical Garden", "To access the botanical garden, your house must be at least level ") || renderGarden();
     else if (ui.place === "sports") renderSports();
     else if (ui.place === "canteen") renderCanteen();
@@ -485,15 +498,44 @@
     else renderTavern();
   }
 
-  /* Locations that need a house level. Renders the "your house must be at least
-   * level N!" notice and returns true when the place is still locked. */
-  function houseGate(key, title, message) {
-    var need = CF.ruleset.locationHouseReq[key] || 0;
-    if ((CF.state.player.houseLevel || 0) >= need) return false;
+  /* The "you can't get in yet" page: a dashed notice saying which house level is
+   * missing, then the way to fix it. ONE renderer, so the house's own rooms are
+   * turned away exactly the way the outdoor locations are. */
+  function lockedPage(title, message, need) {
     $("locationPanel").innerHTML = '<div class="panel"><div class="bar">' + esc(title) + "</div>" +
       '<div class="loc-locked"><div class="ll-box">' + esc(message) + "<b>" + need + "</b>!</div>" +
       '<p class="acc-note"><span class="tlink" data-act="go-house">Go to your house to build it &raquo;</span></p></div></div>';
     return true;
+  }
+  /* Locations that need a house level. Returns true when the place is still
+   * locked, so callers read `gate(...) || render(...)`. */
+  function houseGate(key, title, message) {
+    var need = CF.ruleset.locationHouseReq[key] || 0;
+    if ((CF.state.player.houseLevel || 0) >= need) return false;
+    return lockedPage(title, message, need);
+  }
+
+  /* Each room of the house unlocks at house level = its own number. The house
+   * page already greys out locked rooms, but the sidebar's skill rows link
+   * STRAIGHT into a room — clicking "Chemist" walked you into a fully working
+   * drug lab you had not built. So the gate belongs on the room itself, where
+   * every route in has to pass it. */
+  var ROOM_OF_VIEW = {
+    craftcabinet: 1, station: 1, finished: 1,
+    chemjuicer: 2, druglab: 2, labcabinet: 2,
+    medmachine: 5, medpacking: 5, medwarehouse: 5,
+    anvil: 6, anvilupgrade: 6, armory: 6, blackwarehouse: 6,
+  };
+  function titleCase(s) {
+    return String(s).toLowerCase().replace(/(^|\s)([a-z])/g, function (m, sp, c) { return sp + c.toUpperCase(); });
+  }
+  function roomGate(view) {
+    var n = ROOM_OF_VIEW[view];
+    if (n == null || (CF.state.player.houseLevel || 0) >= n) return false;
+    var room = null;
+    HOUSE_ROOMS.forEach(function (r) { if (r.n === n) room = r; });
+    var name = titleCase(room ? room.name : "this room");
+    return lockedPage(name, "To access the " + name.toLowerCase() + ", your house must be at least level ", n);
   }
 
   /* ---------------------------- YOUR HOUSE ----------------------------- */
@@ -580,6 +622,7 @@
   }
 
   function renderHouse() {
+    if (ui.houseView && roomGate(ui.houseView)) return;
     if (ui.houseView === "craftcabinet") return renderCraftCabinet();
     if (ui.houseView === "station") return renderStation();
     if (ui.houseView === "finished") return renderFinishedCabinet();
@@ -1258,10 +1301,10 @@
   function canHelpBody() {
     var c = CF.ruleset.canteen;
     return '<div class="chelp"><p>The canteen is the tavern\'s <b>second floor</b>. It feeds the customers your ' +
-      "first floor is already serving drinks to — and it runs on <b>Cooking</b>.</p><ol>" +
+      "first floor is already serving drinks to, and it runs on <b>Cooking</b>.</p><ol>" +
       "<li><b>Fill the container</b> at the Dairy warehouse with <b>Raw milk</b> or <b>Water</b>. Each container holds <b>" +
         c.containerMax + "</b> liters.</li>" +
-      "<li><b>Prepare a dairy product</b> from those raw liquids — up to <b>" + c.brewMax +
+      "<li><b>Prepare a dairy product</b> from those raw liquids, up to <b>" + c.brewMax +
         "</b> liters at a time. One liter costs <b>" + c.rawMilkPerLiter + "</b> liter of raw milk and <b>" +
         c.waterPerLiter + "</b> of water.</li>" +
       "<li><b>Fruit</b> arrives on its own: every plant you harvest in the edible garden sends <b>20 fruit</b> " +
@@ -1273,7 +1316,7 @@
       "<li>An hour of a vegetarian dish costs <b>" + c.vegFruitPerHour + "</b> of each fruit and <b>" +
         c.vegDairyPerHour + "</b> liters of dairy; a fish dish costs <b>" + c.fishPerHour + "</b> kg of fish, <b>" +
         c.fishFruitPerHour + "</b> fruit and <b>" + c.fishDairyPerHour + "</b> liters of dairy.</li>" +
-      "</ol><p><b>NB!</b> Container sizes grow as your Cooking level does. Cooking fame is <b>level&sup2; &times; 3</b>.</p></div>";
+      "</ol><p><b>NB!</b> Container sizes grow as your Cooking level does.</p></div>";
   }
   function canteenNoticeHtml() {
     return noticeHtml({ err: ui.canError, msg: ui.canNotice, errLabel: "ERROR!", nums: true,
@@ -2171,12 +2214,16 @@
     }
     var opts = CF.runningOptions.map(function (o) {
       var on = ui.runHours === o.hours;
+      /* The hours are counted in updates, so the finish time is a clock time —
+       * show it, or "1 hour" looks broken when it lands 20 minutes later. */
       return '<div class="run-opt" data-act="run-opt" data-hours="' + o.hours + '">' +
         '<input type="radio" name="runopt"' + (on ? " checked" : "") + "> " +
-        "<b>" + o.hours + "</b> hour" + (o.hours === 1 ? "" : "s") + " - trains <b>" + o.points + "</b> points and spends <b>" + o.boots + "</b> boots</div>";
+        "<b>" + o.hours + "</b> hour" + (o.hours === 1 ? "" : "s") + " - trains <b>" + o.points + "</b> points and spends <b>" + o.boots + "</b> boots" +
+        ' <span class="run-ends">ends ' + hhmm(CF.clock.slotsAhead(o.hours)) + "</span></div>";
     }).join("");
     return '<div class="sp-need">You need <b>' + fmt(d.pointsToLevel) + "</b> more stamina points to level up.</div>" +
       '<div class="run-title">Choose running time:</div>' + opts +
+      '<p class="nb">Running finishes on the update, so the first hour is short by however far into this one you set off.</p>' +
       '<div class="sure"><label>Are you using steroids? <input type="checkbox" id="runSteroids" data-role="runsteroids"' + (ui.runSteroids ? " checked" : "") + "></label></div>" +
       '<p class="nb"><b>NB!</b> Using steroids will give you 2x more points!</p>' +
       '<div class="cbtn"><button class="btn" data-act="sports-run">Go for a run.</button></div>';
@@ -2192,7 +2239,7 @@
           '<span class="lmeta">( -' + l.energy + " energy = " + fmt(l.points) + " points )</span></div>";
       }).join("") + "</div>" +
       '<div class="eat"><a data-act="sports-steroid">Eat 1 steroid and restore ' + CF.ruleset.sports.steroidEnergy + " arm energy!</a></div>" +
-      '<p class="nb"><b>NB!</b> Hand energy recovers ' + CF.ruleset.sports.handEnergyPerHour + " points per hour!</p>";
+      '<p class="nb"><b>NB!</b> Hand energy recovers ' + CF.ruleset.perUpdate.handEnergy + " points at every update!</p>";
   }
   /* Lifting updates only the numbers that changed — rebuilding the whole panel
    * made the lift rows visibly flash on every click. */
@@ -2400,17 +2447,22 @@
   }
 
   function cashierView() {
-    var p = CF.state.player;
+    var p = CF.state.player, chips = p.tokens || 0;
+    /* Both directions are prefilled with the whole balance. The withdraw box
+     * used to start empty, which made cashing out look like something the
+     * cashier did not offer. */
     return '<div class="bar2">Casino Cashier</div>' + chipLine() +
       '<table class="formtbl cas-cash">' +
         "<tr><td>Exchange money for tokens:</td>" +
           '<td><input type="number" id="casBuy" min="0" value="' + fmt0(p.money) + '"> ' +
           '<button class="btn" data-act="cas-buy">Change</button></td></tr>' +
         "<tr><td>Exchange tokens for money:</td>" +
-          '<td><input type="number" id="casSell" min="0" value=""> ' +
+          '<td><input type="number" id="casSell" min="0" value="' + fmt0(chips) + '"> ' +
           '<button class="btn" data-act="cas-sell">Change</button></td></tr></table>' +
-      '<p class="cas-note">Your money: <b>' + fmt(p.money) + "</b> CC &nbsp;·&nbsp; 1 CC = <b>" +
-        CF.ruleset.casino.tokenRate + "</b> token.</p>";
+      '<p class="cas-note">Your money: <b>' + fmt(p.money) + "</b> CC &nbsp;&middot;&nbsp; your chips: <b>" +
+        fmt(chips) + "</b> &nbsp;&middot;&nbsp; 1 CC = <b>" + CF.ruleset.casino.tokenRate + "</b> token.</p>" +
+      '<p class="cas-note">Cash out whenever you like. Chips are only spendable inside the casino, so anything ' +
+        "you want to keep has to come back through here.</p>";
   }
 
   function renderCasino() {
@@ -2432,21 +2484,6 @@
       "You also need a <b>garage and a car</b> — the garage isn't built yet.",
       '<div class="loc-art">' + locArt("car.png", "loc-img", "racing", "Racing complex") + "</div>");
   }
-  function renderBarracks() {
-    var b = CF.ruleset.barracks, dur = CF.sports.durability().level, p = CF.state.player;
-    var body;
-    if (dur < b.reqDurability) {
-      body = '<div class="ll-box">You need <b>' + b.reqDurability + "</b> durability to build barracks (you have <b>" + dur + "</b>).</div>";
-    } else if (CF.state.barracksBuilt) {
-      body = '<div class="ll-box">Your barracks is built — squads and warfare aren\'t implemented yet.</div>';
-    } else {
-      body = '<div class="cbtn"><button class="btn go" data-act="build-barracks">Build a barracks on the site (' + fmt(b.priceCC) + " CC)</button></div>";
-    }
-    $("locationPanel").innerHTML = '<div class="panel"><div class="bar">Barracks</div>' +
-      '<div class="loc-locked"><div class="loc-art">' + locArt("barracks-0.gif", "loc-img", "barracks", "Barracks") + "</div>" +
-      body + "</div></div>";
-  }
-
   /* ------------------------------- SLUM -------------------------------- */
   var SLUM_ART =
     '<svg class="slumart" viewBox="0 0 700 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' +
@@ -2705,6 +2742,13 @@
     return rows;
   }
 
+  /* A stealing-gear bar. Both fill by perUpdate.*Gear at every update, so these
+   * read live rather than sitting at the reference's frozen numbers. */
+  function gearLine(label, val) {
+    var max = CF.ruleset.perUpdate.gearMax, v = Math.max(0, Math.min(max, val || 0));
+    return esc(label) + ': <span class="ebar"><i style="width:' + (v / max * 100) + '%"></i></span> ' + fmt(v) + "/" + fmt(max);
+  }
+
   function renderAccount() {
     // rows may carry an action -> the whole row is clickable and highlights
     function box(title, rows) {
@@ -2721,17 +2765,20 @@
     var run = CF.sports.runState();
     var steroidLeft = Math.max(0, 86400000 - (Date.now() - (S.lastSteroidBuy || 0)));
 
-    // Panels appear as you unlock the systems behind them — a brand-new account
-    // only sees Mining, Cottages, Sports and Other.
-    // the garden panel only exists once the garden itself is unlocked (house 2)
+    /* Two reasons a panel is missing, and they are different things:
+     *   - NOT UNLOCKED YET — the system exists, you just haven't reached it
+     *     (the garden needs house 2). Play on and it appears.
+     *   - NOT BUILT — we haven't written it. `CF.ruleset.built` gates these, and
+     *     the markup stays put so flipping the flag brings the panel straight
+     *     back. Nothing below is deleted, only skipped. */
+    var B = CF.ruleset.built;
     var showGarden = (CF.state.player.houseLevel || 0) >= CF.ruleset.locationHouseReq.garden;
-    var showHospital = false;   // no Hospital system yet
 
     $("locationPanel").innerHTML =
       '<div class="panel"><div class="bar">Account overview</div>' +
       '<div class="acc-cols"><div>' +
-        box("Mining information", [
-          "Battery charge: <b>100</b> %", "Battery charging: <b>00:00:00</b>", "Progress to map update: <b>72.1</b> %"]) +
+        (B.mining ? box("Mining information", [
+          "Battery charge: <b>100</b> %", "Battery charging: <b>00:00:00</b>", "Progress to map update: <b>72.1</b> %"]) : "") +
         box("Sports complex information", [
           { act: "acc-sports", fac: "gym",
             html: 'Hand energy: <span class="ebar"><i style="width:' + epct.toFixed(1) + '%"></i></span> <b>' + fmt(e) + "</b> / " + fmt(emax) },
@@ -2744,27 +2791,25 @@
           { act: "acc-sports", fac: "gym", html: "Your power is <b>" + fmt(CF.sports.power().level) + "</b>, endurance <b>" + fmt(CF.sports.durability().level) + "</b>" }]) +
         (showGarden ? box("Botanical Garden information", gardenAccRows()) : "") +
       "</div><div>" +
-        box("Cottages and Rentsel info", [
-          'Cottage gear: <span class="ebar"><i style="width:25%"></i></span> 25/100',
-          'Rentsel gear: <span class="ebar"><i style="width:10%"></i></span> 10/100']) +
-        (showHospital ? box("Hospital information", [
+        (B.cottages ? box("Cottages and Rentsel info", [
+          gearLine("Cottage gear", CF.state.cottageGear),
+          gearLine("Rentsel gear", CF.state.rentselGear)]) : "") +
+        (B.hospital ? box("Hospital information", [
           "The hospital is currently NOT being upgraded.",
           "The hospital's debt to staff is <b>0</b> CC",
           "<b>0</b> buses waiting for commands",
           "If you wish, you can upgrade one bed NOW!"]) : "") +
-        box("Barracks information", [
-          "No one will attack your city.",
-          "Recruiting soldiers takes <b>379</b> minutes.",
-          "Soldier training lasts <b>389</b> min"]) +
         box("Other information", [
           { act: "acc-streets", html: "Your drug belt holds <b>" + fmt(CF.chemist.beltCap()) + "</b> g (<b>" + fmt(CF.chemist.beltUsed()) + "</b> g used)" },
           { act: "acc-house", html: "Your house is level <b>" + fmt(CF.state.player.houseLevel || 0) + "</b>" },
           { act: "go-harbor", html: harborRefitLine() },
-          { act: "go-harbor", html: harborTripLine() },
-          "You can maintain <b>5</b> more bank items",
-          "You have <b>24</b> more casino coupons",
-          "You can still buy <b>100,000</b> handicrafts at the market",
-          "You can still buy <b>10,000</b> medical supplies from the market"]) +
+          { act: "go-harbor", html: harborTripLine() }
+        ].concat(
+          B.bankItems         ? ["You can maintain <b>5</b> more bank items"] : [],
+          B.casinoCoupons     ? ["You have <b>24</b> more casino coupons"] : [],
+          B.marketHandicrafts ? ["You can still buy <b>100,000</b> handicrafts at the market"] : [],
+          B.marketMedical     ? ["You can still buy <b>10,000</b> medical supplies from the market"] : []
+        )) +
       "</div></div>" +
       '<p class="acc-note"><b>NB!</b> More panels appear here as you unlock new parts of the game.</p>' +
       '<p class="acc-note">Click any highlighted line to jump straight to that part of the game.</p></div>';
@@ -2772,6 +2817,22 @@
 
   /* ======================= CALCULATOR POPUP ============================ */
   function renderModal() {
+    /* The welcome screen holds a half-typed name, and a tavern wave firing
+     * mid-render would wipe it — so once it is up it is refreshed in place
+     * rather than rebuilt. It has no close button on purpose: picking a name is
+     * the way out. */
+    if (ui.welcomeOpen) {
+      if (!$("welcomeName")) {
+        $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal narrow welcome-modal">' +
+          '<div class="bar">Welcome to Crime Factory</div>' +
+          '<div class="modal-body">' + welcomeBody() + "</div></div></div>";
+        var wi = $("welcomeName"); if (wi) wi.focus();
+      } else {
+        var we = $("welcomeErr");
+        if (we) we.innerHTML = noticeHtml({ err: ui.welcomeError, errLabel: "ERROR!" });
+      }
+      return;
+    }
     if (ui.calcOpen) {
       $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal">' +
         '<button class="modal-x" data-act="calc-close" title="Close">&#10005;</button>' +
@@ -2805,8 +2866,357 @@
       $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal">' +
         '<button class="modal-x" data-act="chem-help-close" title="Close">&#10005;</button>' +
         '<div class="bar">Chemist — how to craft</div><div class="modal-body">' + chemHelpBody() + "</div></div></div>";
+    } else if (ui.guideOpen) {
+      $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal guide-modal">' +
+        '<button class="modal-x" data-act="guide-close" title="Close">&#10005;</button>' +
+        '<div class="bar">Game guide</div><div class="modal-body">' + guideBody() + "</div></div></div>";
+    } else if (ui.nameOpen) {
+      // same in-place refresh as the welcome screen, for the same reason
+      if (!$("nickInput")) {
+        $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal narrow">' +
+          '<button class="modal-x" data-act="name-close" title="Close">&#10005;</button>' +
+          '<div class="bar">Change your nickname</div><div class="modal-body">' + nameBody() + "</div></div></div>";
+        var ni = $("nickInput"); if (ni) { ni.focus(); ni.select(); }
+      } else {
+        var ne = $("nameErr");
+        if (ne) ne.innerHTML = noticeHtml({ err: ui.nameError, errLabel: "ERROR!" });
+      }
     } else { $("modalHost").innerHTML = ""; }
   }
+
+  /* Nickname editor. The name is yours alone in a single-player build, so the
+   * only rules are that it exists and stays a sane length. */
+  function nameBody() {
+    var p = CF.state.player;
+    return '<div class="namebox">' +
+      '<div id="nameErr">' + noticeHtml({ err: ui.nameError, errLabel: "ERROR!" }) + "</div>" +
+      "<p>This is the name shown on your account and in the rankings. It is saved with your progress in this browser.</p>" +
+      '<div class="nrow"><label for="nickInput">Nickname</label>' +
+      '<input type="text" id="nickInput" maxlength="20" value="' + esc(p.name) + '" autocomplete="off"></div>' +
+      '<div class="cbtn"><button class="btn go" data-act="name-save">Save</button></div>' +
+      '<p class="nb">2&ndash;20 characters. Letters, numbers, spaces and <b>- _ . \'</b> are allowed.</p></div>';
+  }
+  /* ========================== THE GAME GUIDE ============================
+   * One popup, skills down the left, the chosen article on the right. Every
+   * figure is read from CF.ruleset / the live modules rather than typed in, so
+   * the guide cannot drift away from the game the way a written page would.
+   *
+   * ADDING TO IT: drop an entry in GUIDE below. `body` is a function returning
+   * HTML; leave it out and the article renders as "not built yet" with whatever
+   * `soon` text you give it. The groups are deliberately open-ended — the
+   * "Coming later" one exists so unbuilt systems have a home from day one. */
+  function gTitle(t) { return "<h3>" + esc(t) + "</h3>"; }
+  function gList(items) { return "<ul>" + items.map(function (i) { return "<li>" + i + "</li>"; }).join("") + "</ul>"; }
+  function gSteps(items) { return "<ol>" + items.map(function (i) { return "<li>" + i + "</li>"; }).join("") + "</ol>"; }
+  var GUIDE = [
+    { group: "Getting started", items: [
+      { id: "basics", name: "How the game works", body: function () {
+        var h = CF.ruleset.house, r = CF.ruleset.locationHouseReq;
+        return gTitle("How the game works") +
+          "<p>You start with nothing. No house, every skill at level <b>1</b>, and a tavern job you have not taken " +
+          "yet. Everything else you build.</p>" +
+          gSteps([
+            "<b>Work the tavern.</b> It pays money and Bartending levels, and at the start it is the only income you have.",
+            "<b>Build a house.</b> The first level needs <b>" + h.firstLevelSkill + " " + h.firstLevelReq +
+            "</b>, and every level after that needs <b>Crafting of level &times; " + h.craftLevelsPerHouseLevel + "</b>.",
+            "<b>Every house level opens a room</b>, and every room teaches a new trade. The house is the spine of the game.",
+            "<b>Places around town open the same way.</b> Slum at house <b>" + r.slum + "</b>, Botanical garden <b>" +
+            r.garden + "</b>, Racing complex <b>" + r.racing + "</b>, Casino <b>" + r.casino + "</b>."]) +
+          "<p>The trades feed each other rather than standing alone. The garden grows herbs the medicine laboratory " +
+          "needs, the harbor lands fish the canteen cooks, and the crafts room makes the syringes that finish a first " +
+          "aid kit. Very little stays a dead end for long.</p>" +
+          '<p class="g-note">Your progress saves in this browser as you play. See ' +
+          '<a data-act="guide-pick" data-id="saving">Saving your progress</a>.</p>';
+      } },
+      { id: "update", name: "The update", body: function () {
+        var u = CF.ruleset.perUpdate, g = CF.ruleset.garden;
+        var mins = Math.round(CF.ruleset.tavernIntervalSec / 60);
+        return gTitle("The update") +
+          "<p>Most of the game ticks together, once an hour, <b>on the clock</b>. If it is 16:30 then the next update " +
+          "is <b>30 minutes</b> away rather than a full hour. The sidebar counts down to it and tells you which hour " +
+          "it lands on.</p>" +
+          "<p>Every update:</p>" +
+          gList([
+            "your hand energy goes up <b>+" + u.handEnergy + "</b>, to a maximum of " + fmt(CF.ruleset.sports.handEnergyMax),
+            "cottage gear and rentsel gear each go up <b>+" + u.cottageGear + "</b>, to a maximum of " + u.gearMax,
+            "the garden's watering allowance comes back, <b>" + g.waterPerHour + "</b> plants an hour, and moisture drops a point"]) +
+          "<p><b>The tavern runs on its own faster clock.</b> Customers arrive every <b>" + mins + " minutes</b>, so " +
+          "you get " + Math.round(3600 / CF.ruleset.tavernIntervalSec) + " waves of trade between one update and the next.</p>" +
+          "<p><b>Hours you pick are counted in updates rather than on a stopwatch.</b> A one hour run on the Forest " +
+          "Trail started at 16:30 finishes at the 17:00 update, so that first hour is short by however far into the " +
+          "current hour you set off. Two hours finishes at 18:00. Any screen that offers hours shows you the clock " +
+          "time you would finish at.</p>";
+      } },
+      { id: "house", name: "Your house", body: function () {
+        var h = CF.ruleset.house;
+        return gTitle("Your house") +
+          "<p>The house gates almost everything. Level <b>1</b> needs <b>" + h.firstLevelSkill + " " + h.firstLevelReq +
+          "</b>, since you cannot craft before you own one, and every level after that needs <b>Crafting of level " +
+          "&times; " + h.craftLevelsPerHouseLevel + "</b>. Each level costs <b>" + h.costRatio + " times</b> the one " +
+          "before it, starting at <b>" + fmt(h.costBase) + "</b> CC, up to level <b>" + h.maxLevel + "</b>.</p>" +
+          "<p>A room opens at the house level matching its number:</p>" +
+          '<table class="g-tab"><tr><th>Level</th><th>Room</th><th>Trains</th><th>Yours</th></tr>' +
+          [[1, "Crafts room", "Crafting"], [2, "Drug lab", "Chemist"], [3, "Garage", "not built yet"],
+           [5, "Medicine laboratory", "Medical science"], [6, "Blacksmith", "Blacksmithing"]].map(function (r) {
+            var have = (CF.state.player.houseLevel || 0) >= r[0];
+            return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td><td>" + r[2] +
+              '</td><td class="' + (have ? "g-yes" : "g-no") + '">' + (have ? "open" : "locked") + "</td></tr>";
+          }).join("") + "</table>" +
+          "<p>Walk into a room you have not built yet and the game tells you which level you are missing instead of " +
+          "letting you in.</p>";
+      } },
+      { id: "fame", name: "Fame", body: function () {
+        return gTitle("Fame") +
+          "<p><b>Fame is never earned directly.</b> It is a summary of everything you have levelled, so the only way " +
+          "to raise it is to get better at something.</p>" +
+          "<p>Not every skill counts for the same amount, and the reward grows sharply as a level climbs. One skill " +
+          "pushed high is worth far more fame than several kept middling, so if you are chasing fame, specialise " +
+          "rather than spread yourself thin.</p>" +
+          "<p>Hover any skill in the sidebar to see its level, how far through it you are, and what it is worth to you.</p>";
+      } },
+      { id: "money", name: "Money", body: function () {
+        return gTitle("Money") +
+          "<p>Everything is priced in <b>CC</b>. You earn it by selling: drinks at the tavern, medicines at the " +
+          "laboratory warehouse, weapons at the armory, drugs on the streets. You spend it on materials, house levels, " +
+          "land and equipment.</p>" +
+          gList([
+            "<b>Bank.</b> Deposit and withdraw. Buying the bank itself is not built.",
+            "<b>Casino tokens.</b> Bought and cashed back out at the Cashier at " + CF.ruleset.casino.tokenRate +
+            " CC per token. Chips are only spendable inside the casino.",
+            "<b>Credits</b> are a premium currency and are <b>excluded</b> from this build, along with VIP " +
+            "memberships and trading with other players."]);
+      } },
+      { id: "saving", name: "Saving your progress", body: function () {
+        return gTitle("Saving your progress") +
+          "<p>Your game saves <b>automatically, in this browser</b>, after anything that changes it. Close the tab, " +
+          "come back later, and it picks up where you left off, including the updates that landed while you were away.</p>" +
+          gList([
+            "The save lives in this browser on this device. A different browser, or a private window, starts a new game.",
+            "Clearing site data clears the save.",
+            "<b>Debug &rarr; General</b> has <b>Save</b> and <b>Load</b> buttons that export and import the whole " +
+            "game as a JSON file. That is how you move progress between machines, and it is the only copy that " +
+            "survives a cleared browser."]) +
+          "<p>Nothing is sent anywhere. There is no account and no server, so the game is entirely yours and entirely " +
+          "local.</p>";
+      } },
+    ] },
+
+    { group: "Trades", items: [
+      { id: "Bartending", name: "Bartending", body: function () {
+        var t = CF.ruleset.tavernPurchase, mins = Math.round(CF.ruleset.tavernIntervalSec / 60);
+        return gTitle("Bartending") +
+          "<p>Your first trade, and at the start your only income. Trained at the <b>Tavern</b>.</p>" +
+          gSteps([
+            "<b>Buy raw materials.</b> The price scales with your reputation.",
+            "<b>Press them into raw juice</b>, then <b>mix</b> juice and materials into finished drinks.",
+            "<b>Open the tavern.</b> Customers arrive every <b>" + mins + " minutes</b> and buy on their own, so you " +
+            "earn money and Bartending points without clicking anything.",
+            "<b>Keep it stocked.</b> Customers who find no drink leave unsatisfied, and your reputation <b>falls</b>."]) +
+          "<p><b>Reputation</b> is the dial that matters. It alone decides how many customers turn up, and serving " +
+          "them raises it further, so a well stocked tavern speeds up on its own. Your warehouses grow with your " +
+          "level too, so the higher your Bartending the more materials and juice you can hold at once.</p>" +
+          "<p>At <b>Bartending " + t.reqDrinkMaster + "</b> and <b>" + fmt(t.priceCC) + " CC</b> you can buy the " +
+          "tavern outright. That opens the second floor, the <b>Canteen</b>, and with it the Cooking skill.</p>";
+      } },
+      { id: "Crafting", name: "Crafting", body: function () {
+        var h = CF.ruleset.house;
+        return gTitle("Crafting") +
+          "<p>The <b>Crafts room</b>, at house level 1. Crafting is the skill the whole house rests on, since every " +
+          "level after the first needs <b>Crafting of level &times; " + h.craftLevelsPerHouseLevel + "</b>, so it pays " +
+          "to keep it ahead of everything else.</p>" +
+          gList([
+            "<b>Three stations.</b> The Armchair sews, the Woodworking corner cuts, and the Furnaces melt metal and fire clay.",
+            "<b>Craft cabinet</b> holds your materials, and the <b>Finished Items Cabinet</b> holds what you have made.",
+            "<b>Hand tools</b> such as the needle, scissors and hammer are bought once at the Slum market and never wear out."]) +
+          "<p>Materials come from the <b>Craft supplies counter</b> a whole backpack at a time, and the backpack grows " +
+          "by <b>" + CF.ruleset.craft.backpackPerLevel + "</b> items every level. Yours currently holds <b>" +
+          fmt(CF.craft.capacity()) + "</b>.</p>" +
+          "<p>Crafted goods are not only for selling. The syringes and needle packs that finish a first aid kit come " +
+          "from here, not from the medicine laboratory.</p>";
+      } },
+      { id: "Blacksmithing", name: "Blacksmithing", body: function () {
+        return gTitle("Blacksmithing") +
+          "<p>The <b>Blacksmith</b>, at house level 6.</p>" +
+          gList([
+            "<b>Anvil.</b> Forge weapons. Upgrading it unlocks better ones and lets you work more at once.",
+            "<b>Armory.</b> Collect and sell what you have forged.",
+            "<b>Blacksmith Warehouse.</b> The metal stock the anvil draws on."]) +
+          "<p>Forging feeds the fighting side of the game, which is still mostly unbuilt, so for now selling through " +
+          "the armory is the reliable return.</p>";
+      } },
+      { id: "Chemist", name: "Chemist", body: function () { return gTitle("Chemist") + chemHelpBody(); } },
+      { id: "Cooking", name: "Cooking", body: function () { return gTitle("Cooking") + canHelpBody(); } },
+      { id: "Medical science", name: "Medical science", body: function () { return gTitle("Medical science") + medHelpBody(); } },
+      { id: "Gardening", name: "Gardening", body: function () { return gTitle("Gardening") + edHelpBody(); } },
+      { id: "Stealing", name: "Stealing", body: function () { return gTitle("Stealing") + gardenHelpBody(); } },
+    ] },
+
+    { group: "Body", items: [
+      { id: "Durability", name: "Durability", body: function () {
+        var rows = CF.runningOptions.map(function (o) {
+          return "<tr><td>" + o.hours + " h</td><td>" + o.points + "</td><td>" + o.boots + "</td></tr>";
+        }).join("");
+        return gTitle("Durability") +
+          "<p>Trained at the <b>Forest Trail</b>, which is open to everyone from the start with no pass and no entry " +
+          "fee. Pick how long to run and wait for it.</p>" +
+          '<table class="g-tab"><tr><th>Run</th><th>Points</th><th>Boots</th></tr>' + rows + "</table>" +
+          "<p>Running <b>spends running boots</b>, bought at the Sports shop, and they wear out. Longer runs pay more " +
+          "in total but less per hour, so short repeated runs are the efficient choice if you are at the keyboard " +
+          "anyway.</p>" +
+          "<p><b>Steroids double the points</b> of a run. Stopping early forfeits the boots and the steroid, with no " +
+          "refund.</p>" +
+          "<p>The hours are counted in updates, so a one hour run started at 16:30 ends at 17:00.</p>" +
+          "<p>Durability is worth pushing early. The <b>Gym pass</b> asks for level <b>" +
+          (function () { var n = 30; CF.sportsShop.forEach(function (x) { if (x.pass === "gym") n = x.req.level; }); return n; })() +
+          "</b>, which makes it the gate on training Power at all.</p>";
+      } },
+      { id: "Power", name: "Power", body: function () {
+        var s = CF.ruleset.sports, u = CF.ruleset.perUpdate;
+        var rows = CF.gymLifts.map(function (l) {
+          return "<tr><td>" + esc(l.label) + "</td><td>" + l.energy + "</td><td>" + fmt(l.points) + "</td><td>" +
+            (l.points / l.energy).toFixed(0) + "</td></tr>";
+        }).join("");
+        return gTitle("Power") +
+          "<p>Trained at the <b>Gym</b>, which needs a pass bought at the Sports shop at Durability 30.</p>" +
+          '<table class="g-tab"><tr><th>Lift</th><th>Energy</th><th>Points</th><th>Per energy</th></tr>' + rows + "</table>" +
+          "<p>Look at the last column. <b>Heavier lifts pay more in total but less per unit of energy.</b> Energy is " +
+          "your real bottleneck, so the lightest lift is the most efficient use of it.</p>" +
+          "<p><b>Hand energy</b> is the limit. It goes up <b>" + u.handEnergy + "</b> at every update and caps at <b>" +
+          fmt(s.handEnergyMax) + "</b>. A steroid restores <b>" + s.steroidEnergy + "</b> instantly. Each lift also " +
+          "wears your <b>lifting belt</b> and <b>wristbands</b> by one.</p>";
+      } },
+      { id: "Fighting", name: "Fighting", body: function () {
+        return gTitle("Fighting") +
+          "<p><b>Fighting is never trained directly.</b> It is the average of your six body stats: Speed, Power, " +
+          "Durability, Protection, Skill and Weapon handling. It moves only when one of those moves.</p>" +
+          "<p>Yours is <b>" + fightingValue() + "</b>. Because it is an average, the cheapest way to raise it is " +
+          "whichever body stat is currently lowest, not whichever is easiest to train.</p>";
+      } },
+      { id: "Speed", name: "Speed", soon: "Speed is trained at the <b>Stadium</b>. The entry ticket is already on sale at the Sports shop for anyone at Power 20 or above, but the training itself is not built yet." },
+      { id: "Skill", name: "Skill", soon: "Skill is trained at the <b>Boxing Hall</b>. The pass is already on sale at the Sports shop for anyone at Speed 15 or above, but the training itself is not built yet." },
+      { id: "Protection", name: "Protection", soon: "Protection is trained at the <b>Sports complex</b> alongside Skill. Not built yet." },
+      { id: "Weapon handling", name: "Weapon handling", soon: "Weapon handling rises by using forged weapons in combat. Combat is not built yet." },
+    ] },
+
+    { group: "Around town", items: [
+      { id: "garden", name: "Botanical garden", body: function () {
+        var g = CF.ruleset.garden;
+        return gTitle("Botanical garden") +
+          "<p>Needs house level <b>" + CF.ruleset.locationHouseReq.garden + "</b>, and you have to claim <b>[Become a " +
+          "gardener]</b>, which additionally wants the tavern and house level <b>" + g.gardenerHouseLevel + "</b>.</p>" +
+          gList([
+            "<b>Greenhouse.</b> Steal seeds and drug plants. Every attempt costs <b>" + g.ticketPerSteal + "</b> ticket.",
+            "<b>Ticket office.</b> Sells <b>Stealing level + " + g.ticketsBase + "</b> tickets at <b>" + fmt(g.ticketPriceCC) +
+            "</b> CC each, and reopens every <b>" + Math.round(g.officeCooldownSec / 3600) + " hours</b>.",
+            "<b>Edible herb garden.</b> Buy land, sow, water, harvest. Trains Gardening and feeds the canteen.",
+            "<b>Medicinal herb beds.</b> <b>" + g.medBedsMax + "</b> beds, no watering needed. They feed the medicine laboratory."]) +
+          "<p>The garden is the most connected place in the game, supplying the drug lab, the medicine laboratory and " +
+          "the canteen all at once. See <a data-act=\"guide-pick\" data-id=\"Gardening\">Gardening</a> and " +
+          "<a data-act=\"guide-pick\" data-id=\"Stealing\">Stealing</a> for the loops themselves.</p>";
+      } },
+      { id: "canteen", name: "Tavern &amp; Canteen", body: function () {
+        var c = CF.ruleset.canteen;
+        return gTitle("Tavern &amp; Canteen") +
+          "<p>The tavern is where Bartending happens. Buying it (see <a data-act=\"guide-pick\" data-id=\"Bartending\">Bartending</a>) " +
+          "opens the <b>Canteen</b> upstairs.</p>" +
+          "<p>The canteen works backwards from most kitchens. <b>You choose a liquid first</b>, fill a <b>" +
+          fmt(c.containerMax) + " L</b> container, and that is what gives you the raw materials. Only then do you " +
+          "decide what to cook with them at the vegetarian corner or the fish food table.</p>" +
+          gList([
+            "Up to <b>" + c.brewMax + "</b> litres brewed at a time, and dishes up to <b>" + c.maxHours + "</b> hours long.",
+            "A dish pays <b>" + c.cookPointsPerHour + "</b> Cooking points an hour, and dishes stack, so cooking the " +
+            "same one again simply adds to its time.",
+            "Both tables have a <b>recipe guide</b> button listing every dish and exactly what goes into it."]);
+      } },
+      { id: "harbor", name: "Harbor", body: function () {
+        return gTitle("Harbor") +
+          "<p>Where fish comes from. Buy a ship, hire a fishing crew and a defence crew, then send it out. It comes " +
+          "back with the catch the canteen's fish dishes need.</p>" +
+          gList([
+            "Each <b>upgrade</b> costs a little more than the last and takes a few hours longer, and the screen tells " +
+            "you both before you commit.",
+            "You can <b>upgrade and sail at the same time</b>, since the refit clock and the trip clock run separately.",
+            "Which fish you can land depends on your equipment level, so better equipment opens up better species."]);
+      } },
+      { id: "slum", name: "Slum", body: function () {
+        return gTitle("Slum") +
+          "<p>Needs house level <b>" + CF.ruleset.locationHouseReq.slum + "</b>. There are four areas, and the " +
+          "<b>Market</b> is the one that matters most, since it is where materials are bought.</p>" +
+          gList([
+            "<b>Craft supplies counter.</b> Materials for the crafts room, a backpack at a time.",
+            "<b>Culinary exchange.</b> Swap a field crop for the greenhouse fruit of the same level, one for one, " +
+            "plus a small brokerage fee that scales with how much money you are carrying.",
+            "<b>Drug belt counter.</b> A bigger belt, so you can carry more product to the streets.",
+            "<b>Ticket counter.</b> Passes for the areas.",
+            "The remaining counters are listed but not built yet."]) +
+          "<p>Trading with other players is <b>excluded</b> from this build, so the market only ever trades with the " +
+          "game itself.</p>";
+      } },
+      { id: "casino", name: "Casino", body: function () {
+        var c = CF.ruleset.casino;
+        return gTitle("Casino") +
+          "<p>Needs house level <b>" + CF.ruleset.locationHouseReq.casino + "</b>. The <b>Cashier</b> is the only way " +
+          "in or out. Money becomes tokens at <b>" + c.tokenRate + " CC per token</b>, and you can cash tokens back " +
+          "into money there whenever you like. Chips are no use anywhere else, so anything you want to keep has to " +
+          "come back out through the Cashier.</p>" +
+          gList([
+            "<b>Blackjack.</b> You set the stake first, then play the hand out.",
+            "<b>Video poker.</b> The paytable is on the screen.",
+            "<b>Slot machine.</b> The spin buttons take straight from your tokens."]) +
+          "<p>Every game keeps a slice of what passes through it, which is what a casino is for. Treat it as somewhere " +
+          "to lose money entertainingly rather than a way to make it.</p>";
+      } },
+      { id: "sports", name: "Sports complex", body: function () {
+        return gTitle("Sports complex") +
+          "<p>Five facilities. The <b>Sports shop</b> and <b>Forest Trail</b> are always open. The Gym, Stadium and " +
+          "Boxing Hall each need a pass bought at the shop, and each pass has a stat requirement of its own.</p>" +
+          gList([
+            "<b>Forest Trail</b> trains <a data-act=\"guide-pick\" data-id=\"Durability\">Durability</a>, and is open to everyone.",
+            "<b>Gym</b> trains <a data-act=\"guide-pick\" data-id=\"Power\">Power</a>, with a pass at Durability 30.",
+            "<b>Stadium</b> trains Speed, with a ticket at Power 20. The training is not built yet.",
+            "<b>Boxing Hall</b> trains Skill, with a pass at Speed 15. The training is not built yet.",
+            "<b>Sports shop</b> sells equipment, steroids and the passes themselves."]) +
+          "<p>Equipment is <b>consumed by training</b>. Running spends boots, and lifting spends the belt and " +
+          "wristbands, so budget for replacements and not just for the pass.</p>";
+      } },
+    ] },
+
+    { group: "Coming later", items: [
+      { id: "Mining", name: "Mining", soon: "Mining will supply <b>Uranium</b> for the crafts room's furnaces and <b>Charcoal</b>, neither of which has any source at the moment. That is why a few of the later recipes cannot be finished yet. The account overview already has a Mining panel sitting there waiting for it." },
+      { id: "hospital", name: "Hospital", soon: "The hospital will treat patients using the first aid kits the medicine laboratory packs. It is also what unlocks <b>extra medicinal beds</b> in the garden beyond the first three." },
+      { id: "cottages", name: "Cottages and Rentsel", soon: "A stealing location. The <b>cottage gear</b> and <b>rentsel gear</b> bars on the account overview already fill up at every update, ready for whenever it arrives." },
+      { id: "garage", name: "Garage", soon: "House room 3, for cars and spare parts. It is also what the Racing complex is waiting on, since racing needs both a garage and a car." },
+      { id: "post", name: "Post office", soon: "Messaging between players. Since this build is single player, it is low priority." },
+      { id: "market", name: "Player market", soon: "<b>Deliberately excluded</b>, along with credits and VIP memberships. The market counters that remain all trade with the game rather than with other players." },
+    ] },
+  ];
+
+  function guideFind(id) {
+    var hit = null;
+    GUIDE.forEach(function (g) { g.items.forEach(function (i) { if (i.id === id) hit = i; }); });
+    return hit;
+  }
+  function guideBody() {
+    var cur = ui.guideId || "basics", item = guideFind(cur) || guideFind("basics");
+    var nav = GUIDE.map(function (g) {
+      return '<div class="g-group">' + esc(g.group) + "</div>" +
+        g.items.map(function (i) {
+          return '<a class="g-item' + (i.id === item.id ? " cur" : "") + (i.body ? "" : " soon") +
+            '" data-act="guide-pick" data-id="' + esc(i.id) + '">' + i.name + "</a>";
+        }).join("");
+    }).join("");
+    var body = item.body ? item.body()
+      : gTitle(item.name) + '<div class="notice"><b>NOT BUILT YET</b></div><p>' + item.soon + "</p>";
+    /* During the first run the guide is the last thing standing between the
+     * player and the game, so it gets an explicit way out rather than only a
+     * close cross they might not think to press. */
+    var footer = ui.onboarding
+      ? '<div class="cbtn g-start"><button class="btn go" data-act="guide-close">Start playing &raquo;</button></div>'
+      : "";
+    return '<div class="guide"><div class="g-nav">' + nav + "</div>" +
+           '<div class="g-body chelp">' + body + "</div></div>" + footer;
+  }
+
   /* Our own summary of the medical-science chain (mechanics + formulas), written
    * from the official help page rather than copied from it. */
   /* Our own summary of the gardening loop (mechanics + numbers we've confirmed). */
@@ -2814,29 +3224,29 @@
     var g = CF.ruleset.garden;
     return '<div class="chelp"><p>Growing food plants trains <b>Gardening</b>:</p><ol>' +
       "<li><b>Steal seeds</b> at the Greenhouse (1 ticket = 3 packets). Edible and medicinal seeds unlock by <b>Gardening</b> level; the drug plants unlock by <b>Chemist</b> level instead.</li>" +
-      "<li><b>Buy land</b> at your office &mdash; <b>" + fmt(g.landPriceCC) + "</b> CC per m&sup2; (one purchase every " + Math.round(g.landCooldownSec / 3600) + " h). Each m&sup2; holds <b>" + g.plantsPerM2 + "</b> plants.</li>" +
+      "<li><b>Buy land</b> at your office for <b>" + fmt(g.landPriceCC) + "</b> CC per m&sup2;, one purchase every " + Math.round(g.landCooldownSec / 3600) + " hours. Each m&sup2; holds <b>" + g.plantsPerM2 + "</b> plants.</li>" +
       "<li><b>Sow</b> the seeds. A plant takes about <b>" + g.edibleGrowHours + " hours</b> and starts at <b>" + g.moistureMax + "/" + g.moistureMax + "</b> moisture.</li>" +
       "<li><b>Water</b> it: moisture drops <b>1</b> point per update, and you may water <b>" + g.waterPerHour + "</b> plants per hour. Tick the plants and press Go. A plant that dries out dies and has to be cleared.</li>" +
-      "<li>An <b>Automatic watering can</b> lets you install a permanent waterer on a plant &mdash; it never needs manual watering again.</li>" +
+      "<li>An <b>Automatic watering can</b> installs a permanent waterer on a plant, and that plant never needs watering by hand again.</li>" +
       "<li>Watering can turn up <b>pests</b> (caterpillars, birds, moles). Clear each with its matching tool on the Control Pests tab.</li>" +
       "<li><b>Harvest</b> when the timer ends: <b>plant level + " + g.ediblePointsBase + "</b> gardening points and <b>" + g.fruitPerPlant + "</b> fruit.</li>" +
-      "</ol><p>Medicinal beds work the same way but need no watering &mdash; sow, wait, then <b>cut the plant</b>. Their reward is <b>gardening level &divide; 8</b> points per bed (minimum 1).</p></div>";
+      "</ol><p>Medicinal beds work the same way but need no watering at all. Sow, wait, then <b>cut the plant</b>. What a bed pays scales with your Gardening level.</p></div>";
   }
   function medHelpBody() {
     var r = CF.ruleset.garden;
     return '<div class="chelp"><p>Medicinal plants are the start of the <b>Medical science</b> chain:</p><ol>' +
       "<li><b>Steal seeds</b> at the Greenhouse (1 ticket = 3 packets).</li>" +
-      "<li><b>Sow</b> them here — 1 packet fills one bed. You have <b>" + r.medBedsMax + "</b> beds; more need a Hospital of at least level " + r.medBedsHospitalLevel + ".</li>" +
-      "<li>Pick a sowing time. Longer sowing grows <b>more plants</b> (2h&rarr;40 … 24h&rarr;150) but pays the same <b>Gardening</b> points per bed.</li>" +
+      "<li><b>Sow</b> them here. One packet fills one bed, and you have <b>" + r.medBedsMax + "</b> beds. More need a Hospital of at least level " + r.medBedsHospitalLevel + ".</li>" +
+      "<li>Pick a sowing time. Longer sowing grows <b>more plants</b> (2h&rarr;40 up to 24h&rarr;150) but pays the same <b>Gardening</b> points per bed either way.</li>" +
       "<li>When the timer runs out the bed is harvested automatically: you gain the Gardening points and the plants go to your medicinal store.</li>" +
       "<li>The <a data-act=\"go-medmachine\">Medicine machine</a> turns plants into remedies (a rolled bandage or wound swab takes 1 plant; morphine takes 50 poppies), and the <a data-act=\"go-medpacking\">packing table</a> combines six components into a <b>First Aid Kit</b>.</li>" +
-      "</ol><p>Confirmed formulas for that chain:</p><ul>" +
-      "<li>Gardening points per bed = <b>gardening level &divide; 8</b> (minimum 1) &mdash; currently <b>" + fmt(CF.garden.medPointsPerBed()) + "</b>.</li>" +
-      "<li>Points per first aid kit = <b>20 &times; 1.11<sup>level</sup></b>, rounded &mdash; the pay rises with the skill it feeds, from <b>22</b> at level 1 to <b>" +
-        fmt(CF.medicine.kitPoints(14)) + "</b> at level 14. You currently earn <b>" + fmt(CF.medicine.kitPoints()) + "</b> a kit.</li>" +
-      "<li>Levelling costs the same as every other trade skill &mdash; <b>&times;1.2</b> a level. Level 1 wants <b>200</b> points, level 14 wants <b>2,137</b>.</li>" +
-      "<li>First Aid Kit sale price = <b>durability&sup2; &times; (medical science + 1) &divide; 1.2</b>.</li>" +
-      "<li>Medical science fame = <b>level&sup2; &times; 9</b>; each level also adds <b>+1%</b> to your doctors' success rate.</li>" +
+      "</ol><p>Worth knowing about that chain:</p><ul>" +
+      "<li>Each bed pays gardening points based on your Gardening level, currently <b>" + fmt(CF.garden.medPointsPerBed()) + "</b> a bed.</li>" +
+      "<li><b>Kits pay more as you improve.</b> The points a first aid kit is worth climb with your Medical science " +
+        "level, from <b>22</b> at level 1 to <b>" + fmt(CF.medicine.kitPoints(14)) + "</b> at level 14. You currently " +
+        "earn <b>" + fmt(CF.medicine.kitPoints()) + "</b> a kit, and the packing table always shows your rate.</li>" +
+      "<li>A kit sells for more the tougher and more skilled you are, so the same kit is worth steadily more over time.</li>" +
+      "<li>Every level adds <b>+1%</b> to your doctors' success rate.</li>" +
       "<li>Using a kit on yourself gives a temporary <b>+5% durability</b>.</li>" +
       "</ul><p class=\"acc-note\">The Hospital isn't built yet, so extra medicinal beds and the doctors who use your kits are still out of reach.</p></div>";
   }
@@ -2846,8 +3256,8 @@
       return "<tr><td>" + esc(p.name) + "</td><td>" + p.chem + "</td><td>" + p.steal + "</td></tr>";
     }).join("");
     return '<div class="chelp"><p>Every steal costs <b>1 greenhouse ticket</b> and earns <b>Stealing</b> points.</p><ol>' +
-      "<li><b>Steal plants to make drugs</b> &mdash; fills your backpack with <b>" + r.plantBackpackSize + "</b> plants (+" + r.stealPointsPlants + " steal points). Carry them to the <b>Laboratory Cabinet</b>, put them in the closet, then press them in the <b>Juicer</b>.</li>" +
-      "<li><b>Steal seeds</b> (edible or medicinal) &mdash; gives <b>" + r.seedsPerSteal + "</b> seeds (+" + r.stealPointsSeeds + " steal point). Growing them comes with the Edible herb garden / Medicinal herb beds.</li>" +
+      "<li><b>Steal plants to make drugs.</b> Fills your backpack with <b>" + r.plantBackpackSize + "</b> plants and pays " + r.stealPointsPlants + " steal points. Carry them to the <b>Laboratory Cabinet</b>, put them in the closet, then press them in the <b>Juicer</b>.</li>" +
+      "<li><b>Steal seeds</b>, edible or medicinal. Gives <b>" + r.seedsPerSteal + "</b> seeds and " + r.stealPointsSeeds + " steal point. Growing them happens in the Edible herb garden and the Medicinal herb beds.</li>" +
       "</ol><p>Drug plants need <b>both</b> a Chemist and a Stealing level:</p>" +
       '<table class="chelp-tab"><tr><th>Plant</th><th>Chemist</th><th>Stealing</th></tr>' + rows + "</table></div>";
   }
@@ -2858,10 +3268,10 @@
     }).join("");
     return '<div class="chelp"><p>Turn cheap street narcotics into valuable processed drugs:</p>' +
       "<ol>" +
-      '<li>Buy raw <b>narcotics</b> on the <b>Streets</b> — they land in your drug belt.</li>' +
+      '<li>Buy raw <b>narcotics</b> on the <b>Streets</b>. They land in your drug belt.</li>' +
       '<li>Get <b>plants</b> from the Botanical garden, then press them in the <b>Juicer</b> for juice.</li>' +
       '<li>In the <b>Drug lab</b>, pick a narcotic + its matching plant-juice + a quantity, then <b>Mix</b>. Each gram uses 1&nbsp;g narcotic + 1&nbsp;ml juice → 1&nbsp;g of the drug, and earns Chemist points.</li>' +
-      '<li>Sell the processed drug back on the <b>Streets</b> — that\'s the profit.</li>' +
+      '<li>Sell the processed drug back on the <b>Streets</b>. That is where the profit is.</li>' +
       "</ol>" +
       "<p>A recipe unlocks once you reach its Chemist level:</p>" +
       '<table class="chelp-tab"><tr><th>Lvl</th><th>Narcotic + Juice</th><th>Drug</th></tr>' + rows + "</table></div>";
@@ -2887,7 +3297,7 @@
       // save/load/reset sit at the very top, above the tab switcher
       '<div class="dbg-save"><button class="btn" data-act="save">💾 Save</button> ' +
         '<button class="btn" data-act="load">📂 Load</button> ' +
-        '<button class="btn warn" data-act="reset">♻ Reset</button></div>' +
+        '<button class="btn warn" data-act="reset">♻ New account</button></div>' +
       '<div class="dbg-tabs">' +
       '<button class="btn' + (tab === "skills" ? " go" : "") + '" data-act="dbg-tab" data-tab="skills">Skills</button> ' +
       '<button class="btn' + (tab === "general" ? " go" : "") + '" data-act="dbg-tab" data-tab="general">General</button></div>';
@@ -3027,7 +3437,7 @@
 
     var custLine = p.tavernOpen
       ? '<div class="cust">Until the next <b>' + fmt(Math.round(CF.formulas.clientsPer10Min(p.reputation))) +
-        '</b> customers arrive: <span id="custCountdown">' + mmss(ui.timer) + "</span></div>"
+        '</b> customers arrive: <span id="custCountdown">' + mmss(ui.tavernTimer) + "</span></div>"
       : "";
     html += '<div class="tav-status">' +
       (p.tavernOpen
@@ -3249,10 +3659,61 @@
     switch (a) {
       case "save": CF.saveToFile(); toast("Saved crime-factory-save.json"); break;
       case "load": $("fileInput").click(); break;
-      case "reset": CF.resetToTestDefaults(); CF.autosave(); ui.tool = null; ui.lastUpdate = null; renderAll(); toast("Reset to test defaults."); break;
+      case "reset": CF.newAccount(); CF.autosave(); ui.tool = null; ui.lastUpdate = null;
+        ui.debugOpen = false; startOnboarding();
+        renderAll(); toast("Started a new account."); break;
       case "account": ui.place = "account"; renderPlace(); break;
       case "debug": ui.debugOpen = true; renderModal(); break;
       case "debug-close": ui.debugOpen = false; renderModal(); break;
+      case "help": ui.guideOpen = true; renderModal(); break;
+      case "guide-close":
+        ui.guideOpen = false;
+        // closing the guide is what hands the game over to a new player
+        if (ui.onboarding) endOnboarding();
+        renderModal(); break;
+      case "welcome-go": {
+        var wv = $("welcomeName") ? String($("welcomeName").value).trim() : "";
+        if (wv.length < 2) ui.welcomeError = "Pick a name of at least 2 characters.";
+        else if (wv.length > 20) ui.welcomeError = "A nickname can be at most 20 characters.";
+        else if (!/^[A-Za-z0-9 ._'-]+$/.test(wv)) ui.welcomeError = "Use only letters, numbers, spaces and - _ . '";
+        else {
+          CF.state.player.name = wv;
+          ui.welcomeError = null; ui.welcomeOpen = false;
+          ui.guideOpen = true; ui.guideId = "basics";   // step two, still blurred
+          CF.autosave(); renderSidebar();
+        }
+        renderModal(); break;
+      }
+      case "guide-pick": {
+        // Keep your place in the index — renderModal rebuilds the popup, which
+        // would otherwise fling the list back to the top every time you picked
+        // something from the bottom of it.
+        var navEl = document.querySelector(".g-nav");
+        var navAt = navEl ? navEl.scrollTop : 0;
+        ui.guideId = el.getAttribute("data-id");
+        ui.guideOpen = true;          // in-article links work from anywhere
+        renderModal();
+        var nav2 = document.querySelector(".g-nav"); if (nav2) nav2.scrollTop = navAt;
+        // ...but always start the new article at the top, however far down the
+        // last one you had read. Whichever box is the one that scrolls.
+        var gb = document.querySelector(".g-body"); if (gb) gb.scrollTop = 0;
+        var mb = document.querySelector(".modal-body"); if (mb) mb.scrollTop = 0;
+        window.scrollTo(0, 0);
+        break;
+      }
+      case "name-edit": ui.nameOpen = true; ui.nameError = null; renderModal(); break;
+      case "name-close": ui.nameOpen = false; ui.nameError = null; renderModal(); break;
+      case "name-save": {
+        var nv = $("nickInput") ? String($("nickInput").value).trim() : "";
+        if (nv.length < 2) ui.nameError = "A nickname needs at least 2 characters.";
+        else if (nv.length > 20) ui.nameError = "A nickname can be at most 20 characters.";
+        else if (!/^[A-Za-z0-9 ._'-]+$/.test(nv)) ui.nameError = "Use only letters, numbers, spaces and - _ . '";
+        else {
+          CF.state.player.name = nv; ui.nameOpen = false; ui.nameError = null;
+          CF.autosave(); renderSidebar(); toast("Nickname saved.");
+        }
+        renderModal(); break;
+      }
       case "dbg-set-level": {
         var dsk = ui.dbgSkill || "Bartending", dlv = Math.max(1, num("dbgLevel", 1));
         debugSetLevel(dsk, dlv); CF.autosave(); renderSidebar(); renderPlace(); renderModal();
@@ -3297,7 +3758,6 @@
       case "go-bank": ui.place = "bank"; ui.bankNotice = null; ui.bankError = null; renderPlace(); break;
       case "go-casino": ui.place = "casino"; renderPlace(); break;
       case "go-racing": ui.place = "racing"; renderPlace(); break;
-      case "go-barracks": ui.place = "barracks"; renderPlace(); break;
       case "bank-buy": toast("Feature not built yet.", "err"); break;
       case "bank-put": {
         ui.bankNotice = null; ui.bankError = null;
@@ -3365,12 +3825,6 @@
                                    : CF.casino.sellTokens(num("casSell", 0));
         if (xr.ok) ui.casNotice = xr.msg; else ui.casError = xr.msg;
         CF.autosave(); renderSidebar(); renderPlace(); break;
-      }
-      case "build-barracks": {
-        var bk = CF.ruleset.barracks;
-        if (CF.state.player.money < bk.priceCC) { toast("Needs " + fmt(bk.priceCC) + " CC.", "err"); break; }
-        CF.state.player.money -= bk.priceCC; CF.state.barracksBuilt = true;
-        CF.autosave(); renderSidebar(); renderPlace(); toast("Barracks built."); break;
       }
       case "house-craft": ui.place = "house"; ui.houseView = "craftcabinet"; renderPlace(); break;
       case "market-craft": {
@@ -3925,9 +4379,46 @@
   /* ============================== INIT ================================= */
   function renderAll() { renderTop(); renderWhere(); renderPlace(); renderModal(); }   // renderPlace draws the sidebar
 
+  /* ---- First run ---------------------------------------------------------
+   * A brand-new player meets two screens before the game is theirs: a welcome
+   * that asks for a name, then the guide on its first page. The game itself
+   * sits behind both, blurred and out of reach, so the first thing they see is
+   * the real thing rather than a blank page or a wall of menus.
+   *
+   * `ui.onboarding` spans BOTH steps and is what puts the blur up. Closing the
+   * guide is what ends it — that is the moment the game becomes playable. */
+  function startOnboarding() {
+    ui.onboarding = true;
+    ui.welcomeOpen = true; ui.welcomeError = null;
+    ui.guideOpen = false; ui.guideId = "basics";
+    applyOnboarding();
+  }
+  function endOnboarding() {
+    ui.onboarding = false; applyOnboarding(); CF.autosave();
+  }
+  function applyOnboarding() {
+    document.body.classList.toggle("onboarding", !!ui.onboarding);
+    /* `inert` as well as the CSS: pointer-events blocks the mouse but leaves the
+     * links behind the blur tabbable, so a new player could Tab into the game
+     * and press Enter through it. inert takes the whole subtree out of reach. */
+    var g = $("game");
+    if (g) { if (ui.onboarding) g.setAttribute("inert", ""); else g.removeAttribute("inert"); }
+  }
+
+  function welcomeBody() {
+    return '<div class="welcome">' +
+      "<p class=\"w-lead\">You are starting with nothing. No house, no trade, and a tavern job you have not " +
+      "taken yet. Everything from here you build yourself.</p>" +
+      '<div id="welcomeErr">' + noticeHtml({ err: ui.welcomeError, errLabel: "ERROR!" }) + "</div>" +
+      "<p class=\"w-ask\">First, what should people call you?</p>" +
+      '<div class="nrow"><input type="text" id="welcomeName" maxlength="20" placeholder="Your nickname" autocomplete="off"></div>' +
+      '<div class="cbtn"><button class="btn go" data-act="welcome-go">Start &raquo;</button></div>' +
+      '<p class="nb">2&ndash;20 characters. You can change it later by clicking your name in the sidebar.</p></div>';
+  }
+
   function init() {
     CF.normalizeRecipes();
-    if (!CF.restore()) CF.resetToTestDefaults();
+    if (!CF.restore()) { CF.newAccount(); startOnboarding(); }
 
     skillPopEl = document.createElement("div");
     skillPopEl.className = "skillpop"; skillPopEl.style.display = "none";
@@ -3947,15 +4438,31 @@
       skillPopEl.className = "skillpop" + (sk === "Fame" ? " wide" : "");
       skillPopEl.innerHTML = popHtml;
       skillPopEl.style.display = "block";
-      var rect = row.getBoundingClientRect(), h = skillPopEl.offsetHeight;
-      var top = rect.top; if (top + h > window.innerHeight - 6) top = Math.max(6, window.innerHeight - h - 6);
-      skillPopEl.style.left = (rect.right + 8) + "px"; skillPopEl.style.top = top + "px";
+      /* rect is in zoomed (screen) coordinates but the popup is itself inside the
+       * zoom, so every figure has to come back down by the zoom factor or the
+       * panel drifts further off the row the bigger the interface gets. */
+      var z = uiZoom(), rect = row.getBoundingClientRect(), h = skillPopEl.offsetHeight;
+      var vh = window.innerHeight / z, top = rect.top / z;
+      if (top + h > vh - 6) top = Math.max(6, vh - h - 6);
+      skillPopEl.style.left = (rect.right / z + 8) + "px"; skillPopEl.style.top = top + "px";
     });
     document.addEventListener("mouseout", function (e) {
       var row = e.target.closest ? e.target.closest(".srow[data-skill]") : null;
       if (!row) return;
       var to = e.relatedTarget;
       if (!to || !(to.closest && to.closest(".srow[data-skill]"))) hideSkillPop();
+    });
+    // Enter saves the nickname, Escape closes whichever popup is open.
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target && e.target.id === "nickInput") {
+        e.preventDefault();
+        var b = document.querySelector('[data-act="name-save"]'); if (b) b.click();
+      } else if (e.key === "Enter" && e.target && e.target.id === "welcomeName") {
+        e.preventDefault();
+        var wb = document.querySelector('[data-act="welcome-go"]'); if (wb) wb.click();
+      } else if (e.key === "Escape") {
+        var x = document.querySelector(".modal-x"); if (x) x.click();
+      }
     });
     $("fileInput").addEventListener("change", function (e) {
       var f = e.target.files[0]; if (!f) return;
@@ -3964,10 +4471,29 @@
     });
 
     setInterval(function () {
-      ui.timer -= 1;
-      if (ui.timer <= 0) { ui.timer = CF.ruleset.updateIntervalSec; doUpdate(false); }
+      /* Two clocks, both read off the wall clock rather than a counter we
+       * started, so they land on :00 for everyone and survive a page reload.
+       * The hour pays the update; the 10-minute wave serves the tavern. */
+      var hourSlot = CF.clock.slot(), tavSlot = CF.clock.tavernSlot(), redraw = false;
+      ui.timer = CF.clock.secondsToNext();
+      ui.tavernTimer = CF.clock.tavernSecondsToNext();
+
+      if (hourSlot !== ui.updateSlot) {
+        var firstHour = ui.updateSlot == null;
+        ui.updateSlot = hourSlot;
+        if (!firstHour) { CF.settleUpdates(); redraw = true; }
+      }
+      if (tavSlot !== ui.tavernSlot) {
+        var firstWave = ui.tavernSlot == null;
+        ui.tavernSlot = tavSlot;
+        // doUpdate redraws everything itself, so it supersedes the hour's redraw
+        if (!firstWave) { doUpdate(false); redraw = false; }
+      }
+      if (redraw) renderPlace();
+
       var v = $("timerVal"); if (v) v.textContent = mmss(ui.timer);
-      var cc = $("custCountdown"); if (cc) cc.textContent = mmss(ui.timer);
+      var ta = $("timerAt"); if (ta) ta.textContent = hhmm(CF.clock.nextAt());
+      var cc = $("custCountdown"); if (cc) cc.textContent = mmss(ui.tavernTimer);
       var dc = $("drinkContinues"); if (dc) dc.textContent = hms(continuesSeconds());
       // live countdowns on the account overview (endurance run, steroid cooldown, box office)
       ["accRun", "accSteroid", "accBox", "accEdible", "accLand", "accMed", "accRefit"].forEach(function (id) {

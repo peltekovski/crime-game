@@ -78,7 +78,7 @@ CF.seedLateGarden = function (s) {
  * levels/fame (drug belts, anvil upgrade, high-level recipes). Built on top of
  * a fresh state so nothing has to be duplicated. */
 CF.loadLateGame = function () {
-  CF.resetToTestDefaults();
+  CF.newAccount();
   var s = CF.state, p = s.player, f = CF.formulas;
   p.money = 50000000; p.bank = 750000000; p.tokens = 1000; p.fame = 167599;
   p.houseLevel = 9; p.tavernJobAccepted = true; p.tavernOwned = true;
@@ -170,8 +170,10 @@ CF.newSportsState = function () {
   };
 };
 
-/* Fresh state populated with the test-build starting stockpile. */
-CF.resetToTestDefaults = function () {
+/* A brand-new account: no house, every skill at 1, empty warehouses. This is
+ * what a first-time visitor gets, and what the debug "New account" button
+ * restores to. (CF.loadLateGame builds its test profile on top of this.) */
+CF.newAccount = function () {
   var s = CF.ruleset.start;
   var lvl = s.drinkMasterLevel;
   var enforce = CF.ruleset.enforceCapacity;
@@ -215,6 +217,10 @@ CF.resetToTestDefaults = function () {
       cooking: s.cooking,
     },
     inv: { materials: materials, rawJuice: rawJuice, finished: finished },
+    // Stealing gear for Cottages and Rentsel — the reference's starting values.
+    // Both refill by CF.ruleset.perUpdate.*Gear at every update.
+    cottageGear: 25,
+    rentselGear: 10,
     // Crafts room: the closet ("craft cabinet") and the backpack you carry
     // materials home from the market in.
     craft: {
@@ -268,6 +274,32 @@ CF.restore = function () {
   } catch (e) { return false; }
 };
 
+/* ---- What the hourly update hands you -------------------------------------
+ * Hand energy and the two stealing-gear bars top up by a fixed amount at every
+ * update (CF.ruleset.perUpdate), whether or not the page was open — so this
+ * catches up on ALL the updates that were missed rather than paying one and
+ * forgetting the rest. Idempotent: `updateSlot` only ever moves forward, so
+ * calling it twice in the same hour is free. renderSidebar calls it, which
+ * means every screen reads fresh numbers. Returns how many updates it paid. */
+CF.settleUpdates = function () {
+  var s = CF.state, u = CF.ruleset.perUpdate, now = CF.clock.slot();
+  if (!s) return 0;
+  // First call on a fresh load: adopt the current hour without back-paying the
+  // whole epoch. A save's own updateSlot survives, so time away still counts.
+  if (s.updateSlot == null) { s.updateSlot = now; return 0; }
+  var n = now - s.updateSlot;
+  if (n <= 0) return 0;
+  s.updateSlot = now;
+  if (s.sports) {
+    s.sports.handEnergy = Math.min(CF.ruleset.sports.handEnergyMax,
+                                   (s.sports.handEnergy || 0) + n * u.handEnergy);
+    s.sports.energySlot = now;
+  }
+  s.cottageGear = Math.min(u.gearMax, (s.cottageGear || 0) + n * u.cottageGear);
+  s.rentselGear = Math.min(u.gearMax, (s.rentselGear || 0) + n * u.rentselGear);
+  return n;
+};
+
 /* Make sure every known item exists as a key (so a save from an older data set
  * still renders and new drinks appear with a 0 count). */
 CF.reconcileState = function () {
@@ -281,6 +313,11 @@ CF.reconcileState = function () {
     tavernJobAccepted: CF.ruleset.start.tavernJobAccepted, tavernOwned: CF.ruleset.start.tavernOwned,
     fighting: CF.ruleset.start.fighting, cooking: CF.ruleset.start.cooking };
   for (var k in defs) if (defs.hasOwnProperty(k) && p[k] == null) p[k] = defs[k];
+
+  /* Stealing gear for Cottages and Rentsel. The starting values are the ones the
+   * reference's account overview showed; both fill by perUpdate.*Gear an hour. */
+  if (CF.state.cottageGear == null) CF.state.cottageGear = 25;
+  if (CF.state.rentselGear == null) CF.state.rentselGear = 10;
 
   // crafts room (added later than v1 saves)
   var cr = CF.state.craft || (CF.state.craft = { supplies: {}, backpack: null });

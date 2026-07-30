@@ -59,7 +59,9 @@ body {
 }
 #game {
   max-width: 888px;
-  margin: 10px auto;
+  /* flush to the top — the page background carries straight into the frame
+     instead of leaving a strip of dead space above the header */
+  margin: 0 auto 10px;
   background: var(--frame);
   border: 1px solid #6f8296;
   box-shadow: 0 3px 14px rgba(0,0,0,.35);
@@ -79,8 +81,14 @@ b { color: inherit; }
   background: linear-gradient(180deg,#eef1f4,#d7dde3);
   border-bottom: 1px solid #7f93a6;
 }
-.logo { display: flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 220px; }
-.logo .sky { width: 46px; height: 34px; opacity: .8; }
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;   /* the wordmark sits centred in the left block */
+  padding: 8px 12px;
+  min-width: 220px;
+  cursor: pointer;
+}
 .logo .title {
   font-size: 20px;
   font-weight: 800;
@@ -566,9 +574,10 @@ b { color: inherit; }
   font-size: 26px;
   font-weight: bold;
   color: var(--red);
-  padding: 8px 0 12px;
+  padding: 8px 0 2px;
   letter-spacing: 2px;
 }
+.timer-at { text-align: center; color: var(--muted); padding: 0 0 10px; }
 /* -- Where to go? --------------------------------------------------------- */
 .where .cols {
   display: grid;
@@ -636,7 +645,7 @@ b { color: inherit; }
   padding-top: 12px;
   margin-top: 4px;
 }
-/* location artwork (bank / casino / racing / barracks) */
+/* location artwork (bank / casino / racing) */
 .loc-art { display: flex; justify-content: center; align-items: center; }
 .loc-img { max-width: 100%; height: auto; image-rendering: pixelated; }
 .loc-locked .loc-art { margin-bottom: 16px; }
@@ -1116,6 +1125,7 @@ input:focus, select:focus { outline: none; border-color: var(--link); }
 .run-title { text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 8px; }
 .run-opt { padding: 3px 6px; font-size: 12px; cursor: pointer; }
 .run-opt:hover { background: #e3e9ef; }
+.run-ends { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .sure { text-align: center; padding: 8px 0; font-size: 12px; font-weight: bold; }
 .run-live {
   text-align: center;
@@ -1356,6 +1366,84 @@ input:focus, select:focus { outline: none; border-color: var(--link); }
 .crow .k { font-weight: bold; color: var(--ink); text-align: right; flex: 0 0 55%; }
 .crow .v { flex: 0 0 40%; text-align: left; color: var(--ink); }
 .crow .best { color: #2f6ea5; }
+/* -- Game guide popup ------------------------------------------------------
+   Index on the left, article on the right. The article scrolls on its own so
+   the index stays put no matter how long a page gets. */
+.guide { display: grid; grid-template-columns: 170px 1fr; gap: 14px; align-items: start; }
+.g-nav {
+  border: 1px solid var(--line);
+  background: var(--cell);
+  padding: 4px 0 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.g-group {
+  font-weight: bold;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  padding: 8px 8px 3px;
+  border-bottom: 1px solid var(--line2);
+  margin-bottom: 2px;
+}
+.g-item {
+  display: block;
+  padding: 3px 8px;
+  color: var(--link);
+  cursor: pointer;
+  font-size: 11px;
+}
+.g-item:hover { background: var(--hl); }
+.g-item.cur { background: var(--hdr-bot); color: #fff; font-weight: bold; }
+.g-item.soon { color: var(--muted); }
+.g-item.soon.cur { color: #fff; }
+.g-body { max-height: 60vh; overflow-y: auto; padding-right: 6px; }
+.g-body h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--hdr-bot);
+  border-bottom: 1px solid var(--line2);
+  padding-bottom: 4px;
+}
+.g-body p { margin: 0 0 8px; }
+.g-body ul, .g-body ol { margin: 0 0 8px; padding-left: 20px; }
+.g-body li { margin-bottom: 3px; }
+.g-tab { width: 100%; border-collapse: collapse; margin: 0 0 10px; }
+.g-tab th, .g-tab td { border: 1px solid var(--line2); padding: 3px 6px; text-align: left; }
+.g-tab th { background: var(--panel); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+.g-yes { color: var(--green); font-weight: bold; }
+.g-no  { color: var(--muted); }
+.g-fame { border-top: 1px dashed var(--line2); padding-top: 6px; color: var(--muted); }
+.g-note { border-top: 1px dashed var(--line2); padding-top: 6px; }
+/* Its own width rather than reusing .modal.wide, whose 640px cap would fight
+   this at equal specificity. The vw cap is restated so it still fits a phone. */
+.modal.guide-modal { width: 720px; max-width: calc(94vw / var(--zoom)); }
+.modal.narrow { width: 400px; }
+
+/* -- Nickname editor ------------------------------------------------------ */
+.namebox .nrow { display: flex; align-items: center; gap: 10px; margin: 10px 0; justify-content: center; }
+.namebox .nrow label { font-weight: bold; }
+.namebox input, .welcome input { width: 200px; padding: 3px 5px; border: 1px solid var(--line); }
+
+/* -- First run ------------------------------------------------------------
+   The game stays on screen behind the welcome steps, blurred and inert, so a
+   new player is looking at the thing they are about to play rather than a
+   blank page. The blur goes on #game only: #modalHost is its sibling, so the
+   popups on top stay sharp (and a filter on an ancestor would also have
+   trapped their fixed positioning). */
+body.onboarding #game {
+  filter: blur(3px);
+  pointer-events: none;
+  user-select: none;
+}
+.welcome { text-align: center; }
+.welcome .w-lead { margin: 0 0 12px; }
+.welcome .w-ask { font-weight: bold; margin: 12px 0 4px; }
+.welcome .nrow { display: flex; justify-content: center; margin: 8px 0 4px; }
+.welcome-modal .bar { font-size: 13px; padding: 7px 10px; }
+.g-start { margin-top: 12px; border-top: 1px solid var(--line2); padding-top: 12px; }
+
 /* -- Skill hover panel ---------------------------------------------------- */
 .skillpop {
   position: fixed;
@@ -1893,6 +1981,38 @@ select:focus-visible,
   .med-tab, .ed-tab, .ed-pest, .can-dairy, .can-gran, .can-fish, .can-menu,
   .cas-cash, .paybox, .hb-tbl, .cul-tbl { min-width: 0; }
 }
+
+/* -- INTERFACE SCALE ------------------------------------------------------
+ * The frame is a fixed 888px of 11px Tahoma, faithful to the reference. On a
+ * 27" desktop that reads as a small island of tiny text, so the page is SCALED
+ * UP rather than reflowed: widening the frame would stretch tables whose
+ * proportions are the whole point of the recreation.
+ *
+ * `zoom`, not `transform: scale()`, because zoom scales the layout box as well
+ * — no width compensation, no phantom scrollbars, and clicks land where they
+ * look. It goes on BODY, never on :root: root zoom feeds back into the viewport
+ * that media queries measure, and these queries would oscillate across a step.
+ *
+ * Steps, not a fluid formula, because CSS cannot divide a viewport length down
+ * to the unitless number `zoom` needs. --zoom mirrors each step so the few vw/vh
+ * caps below can cancel it out, and JS reads the used value to place the skill
+ * popup (see uiZoom in app.js).
+ *
+ * Fully automatic — there is no size control. If a screen ever needs a different
+ * ramp, change these four numbers; nothing else reads them. */
+:root { --zoom: 1; }
+@media (min-width: 1500px) { body { zoom: 1.10; } :root { --zoom: 1.10; } }
+@media (min-width: 1800px) { body { zoom: 1.25; } :root { --zoom: 1.25; } }
+@media (min-width: 2200px) { body { zoom: 1.45; } :root { --zoom: 1.45; } }
+@media (min-width: 2700px) { body { zoom: 1.70; } :root { --zoom: 1.70; } }
+
+/* vw/vh inside a zoomed body would be scaled a second time — a 74vh cap becomes
+   126% of the screen at zoom 1.7 and the modal runs off the bottom. Divide it
+   back out so these keep meaning what they say. */
+.modal     { max-width:  calc(94vw / var(--zoom)); }
+.modal-body{ max-height: calc(74vh / var(--zoom)); }
+.skillpop  { max-width:  calc(92vw / var(--zoom)); }
+.g-nav, .g-body { max-height: calc(60vh / var(--zoom)); }
 
 @media (max-width: 560px) {
   .logo .title { font-size: 15px; }
