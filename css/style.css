@@ -2184,19 +2184,29 @@ select:focus-visible,
   .modal { max-width: 96vw; }
 }
 
-/* ---- Hospital (treatment desk) ------------------------------------------ */
-.hsp-rooms {
-  display: grid; grid-template-columns: repeat(2, 1fr);
-  gap: 2px 18px; margin: 8px 16px 12px;
+/* ---- Hospital -----------------------------------------------------------
+   Laid out like the reference: artwork on the left, the room links in two
+   columns top-right with the info block beneath them, then the notice, the
+   treatment desk and the two neighbouring links. */
+.hsp-top { display: flex; gap: 14px; align-items: flex-start; padding: 10px 12px 4px; }
+.hsp-art { flex: none; }
+.hsp-img { max-width: 100%; height: auto; image-rendering: pixelated; }
+.hsp-info { flex: 1 1 auto; min-width: 0; }
+.hsp-rooms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 18px; }
+.hsp-room { padding: 1px 0; font-weight: bold; }
+.hsp-stats {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--line2);
+  text-align: center; font-size: 11px;
 }
-.hsp-room { padding: 2px 0; }
-.hsp-room.live { font-weight: bold; }
-.hsp-room.dead { color: #8a97a4; }
-.hsp-soon { font-size: 10px; color: #9aa7b4; }
+.hsp-stats p { margin: 4px 0; }
+.hsp-stats sup { font-size: 8px; }
 .hsp-desk { margin: 0 16px 12px; }
-.hsp-bar { margin-bottom: 8px; }
-.hsp-well { color: #2f6b34; font-weight: bold; }
+.hsp-bar { margin-bottom: 8px; max-width: 320px; }
+/* the reference prints this in blue, centred, when there is nothing to treat */
+.hsp-well { color: #1f4e9c; font-weight: bold; text-align: center; margin: 10px 0 14px; }
 .hsp-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.hsp-links { text-align: center; padding: 6px 12px 12px; font-weight: bold; }
 
 /* ---- label / bar / value rows -------------------------------------------
    Three cells so the bars line up down a column instead of each row putting
@@ -2213,7 +2223,9 @@ select:focus-visible,
 .barline .bl-lbl { text-align: left; }
 .barline .bl-bar { min-width: 0; }
 .barline .bl-bar .ebar { display: block; width: 100%; margin: 0; }
-.barline .bl-val { text-align: right; font-weight: bold; }
+/* fixed width, or a short value like "3/100" leaves a wider gap for the bar
+   than "100/100" does and the bars come out different lengths row to row */
+.barline .bl-val { text-align: right; font-weight: bold; min-width: 56px; }
 /* in the account boxes the label column is fixed so every box agrees */
 .accrow.barline { grid-template-columns: 120px 1fr auto; }
 

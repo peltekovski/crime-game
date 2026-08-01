@@ -98,6 +98,24 @@ CF.sports = (function () {
     return { level: lv.level, into: lv.into, lifetime: lt,
              pointsToLevel: Math.max(0, CF.formulas.pointsToNextLevelFor("Strength", lv.level) - lv.into) };
   }
+  /* THE ENDURANCE POOL. One source of truth: the bar's size IS the Endurance
+   * skill level (the reference shows "Durability : 0 / 45" for a level-45
+   * character), and what is left in it is player.durabilityCur.
+   *
+   * These used to drift apart. `durabilityMax` was a number stored once at
+   * account creation and never touched again, so training Endurance raised the
+   * level without growing the bar, and anything that wrote durabilityCur
+   * directly could leave it ABOVE the max — which made sewer fights unloseable
+   * while the sidebar (which showed the level twice) looked perfectly normal.
+   * Deriving the max removes that whole class of drift. */
+  function enduranceMax() { return Math.max(1, endurance().level); }
+  function enduranceCur() {
+    var p = P(), max = enduranceMax();
+    if (p.durabilityCur == null) p.durabilityCur = max;
+    if (p.durabilityCur > max) p.durabilityCur = max;    // never above the bar
+    p.durabilityMax = max;                               // kept as a mirror for saves
+    return Math.max(0, p.durabilityCur);
+  }
   function equip(name) { return S().equipment[name] || 0; }
   function maxHandEnergy() { return CF.ruleset.sports.handEnergyMax; }
 
@@ -199,6 +217,7 @@ CF.sports = (function () {
 
   return {
     endurance: endurance, power: power, equip: equip, access: access,
+    enduranceMax: enduranceMax, enduranceCur: enduranceCur,
     regenEnergy: regenEnergy, maxHandEnergy: maxHandEnergy,
     runState: runState, runSecondsLeft: runSecondsLeft, settleRun: settleRun,
     startRun: startRun, pauseRun: pauseRun,

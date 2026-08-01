@@ -354,6 +354,10 @@ CF.reconcileState = function () {
   // vault + weapon rack arrived with the sewer's chests; older saves lack them
   if (!CF.state.vault) CF.state.vault = {};
   if (!CF.state.arms) CF.state.arms = {};
+  /* The endurance bar's size is the Endurance level now. Older saves carry a
+     durabilityMax frozen at account creation and a durabilityCur that may sit
+     ABOVE it — which made sewer fights unloseable. Re-clamp on load. */
+  CF.sports.enduranceCur();
 
   // crafts room (added later than v1 saves)
   var cr = CF.state.craft || (CF.state.craft = { supplies: {}, backpack: null });

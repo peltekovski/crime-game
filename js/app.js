@@ -240,12 +240,16 @@
     var customers = Math.round(CF.formulas.clientsPer10Min(p.reputation));
     var enough = p.tavernOpen;
 
-    var durLvl = CF.sports.endurance().level;
+    /* CURRENT over MAX, not level over level. Showing the level twice meant the
+       bar always read full: you could lose a fight in the sewer, be sitting on
+       0, and the sidebar would still say 27 / 27. The reference shows the pool
+       ("Durability : 0 / 45"), and that is the number combat actually uses. */
+    var durLvl = CF.sports.enduranceMax();
     var rows =
       srow("👤", "Name", esc(p.name), { act: "name-edit", cls: "clickable", vcls: "nameval" }) +
       srow("⭐", "Fame", fmt(totalFame()), { skill: "Fame" }) +
       '<div class="srow sep"></div>' +   // breathing room before the stat block
-      srow("🛡️", "Endurance", fmt(durLvl) + " / " + fmt(durLvl),
+      srow("🛡️", "Endurance", fmt(CF.sports.enduranceCur()) + " / " + fmt(durLvl),
         { cls: lit0() === "Endurance" ? "hl" : "", skill: "Endurance" });
     function lit0() { return activeSkill(); }
     var icons = { "Fighting": "🥊", "Weapon handling": "🔫", "Defence": "🦺", "Strength": "💪",
@@ -1358,34 +1362,53 @@
    * the daily books — is listed but inert, so the place reads right without
    * pretending to run a business it does not run yet. */
   function hospitalRoomsHtml() {
-    var rows = CF.hospital.rooms().map(function (r) {
-      return '<div class="hsp-room' + (r.live ? " live" : " dead") + '">' + esc(r.name) +
-        (r.live ? "" : ' <span class="hsp-soon">not built</span>') + "</div>";
-    }).join("");
-    return '<div class="hsp-rooms">' + rows + "</div>";
+    var R = CF.hospital.rooms();
+    function col(names) {
+      return "<div>" + names.map(function (n) {
+        return '<div class="hsp-room"><a data-act="hsp-room" data-room="' + esc(n) + '">' + esc(n) + "</a></div>";
+      }).join("") + "</div>";
+    }
+    return '<div class="hsp-rooms">' + col(R.left) + col(R.right) + "</div>";
   }
-  function hospitalBody() {
-    var H = CF.hospital, cur = H.endurance(), max = H.maxEndurance();
-    var pct = Math.max(0, Math.min(100, cur / max * 100));
-    var kits = H.kits(), need = H.kitsNeeded(), price = H.price();
-    var canCash = CF.state.player.money >= price, canKit = kits >= need;
-    var well = !H.hurt();
+  /* The reference's info block, word for word. Every figure is static — the
+     hospital is not run as a business yet, and these are the spec for when it
+     is, so they are quoted rather than invented. */
+  function hospitalStatsHtml() {
+    var s = CF.hospital.stats();
+    return '<div class="hsp-stats">' +
+      "<p>The hospital level is <b>" + fmt(s.level) + "</b> and the profit is <b>" + fmt(s.profitCC) + "</b> CC.<br>" +
+      "The cleanliness of the hospital is <b>" + s.cleanlinessPct + "%</b> and the quality of nursing is <b>" +
+      s.nursingPct + "%</b>.</p>" +
+      "<p>The rest room is <b>" + s.restRoomM2 + "</b> m<sup>2</sup>, of which <b>" + s.restRoomUsedM2 +
+      "</b> m<sup>2</sup> is in use.<br>" +
+      "The hospital parking lot can accommodate <b>" + s.parkingSpaces + "</b> cars, you have <b>" +
+      s.carsParked + "</b> cars.<br>" +
+      "Daily profit <b>" + fmt(s.dailyProfit) + "</b> and debt <b>" + fmt(s.debt) + "</b></p>" +
+      "</div>";
+  }
+  function hospitalDeskHtml() {
+    var H = CF.hospital;
+    if (!H.hurt()) return '<p class="hsp-well">You are healthy and do not need treatment...</p>';
+    var kits = H.kits(), price = H.price();
+    var canCash = CF.state.player.money >= price, canKit = kits >= H.kitsNeeded();
     return '<div class="hsp-desk">' +
-      '<div class="hsp-bar">Endurance: <span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span> ' +
-        "<b>" + fmt(cur) + "</b> / " + fmt(max) + "</div>" +
-      (well
-        ? '<p class="hsp-well">You are in one piece. Nothing here to do.</p>'
-        : "<p>A lost fight in the sewer leaves you at nothing, and only this desk will put it back.</p>") +
+      '<div class="hsp-bar barline">' + barLine("Endurance", H.endurance(), H.maxEndurance()) + "</div>" +
       '<div class="hsp-acts">' +
-        '<button class="btn" data-act="hsp-cash"' + (well || !canCash ? " disabled" : "") + ">" +
+        '<button class="btn" data-act="hsp-cash"' + (canCash ? "" : " disabled") + ">" +
           "Get treated at the hospital (Cost: " + fmt(price) + " CC)</button>" +
-        '<button class="btn" data-act="hsp-kit"' + (well || !canKit ? " disabled" : "") + ">" +
+        '<button class="btn" data-act="hsp-kit"' + (canKit ? "" : " disabled") + ">" +
           "Use one first aid kit for treatment (Total: " + fmt(kits) + ")</button>" +
       "</div>" +
-      (!well && !canCash && !canKit
+      (!canCash && !canKit
         ? '<p class="nb">NOTE! You cannot afford the fee and you have no first aid kits. Kits are packed at the ' +
-          '<a data-act="go-house" >medicine laboratory</a> from your own medicines.</p>' : "") +
+          "medicine laboratory from your own medicines.</p>" : "") +
       "</div>";
+  }
+  function hospitalLinksHtml() {
+    return '<div class="hsp-links">' + CF.hospitalLinks.map(function (l) {
+      return (l.before || "") + '<a data-act="' + l.act + '"' + (l.fac ? ' data-fac="' + l.fac + '"' : "") +
+        ">" + esc(l.label) + "</a>" + (l.after || "");
+    }).join(" | ") + "</div>";
   }
   function hspNoticeHtml() {
     return noticeHtml({ err: ui.hspError, msg: ui.hspNotice, label: "NOTICE", errLabel: "ERROR!", nums: true });
@@ -1393,11 +1416,14 @@
   function renderHospital() {
     $("locationPanel").innerHTML =
       '<div class="panel hsp"><div class="bar">Hospital</div>' +
+      '<div class="hsp-top">' +
+        '<div class="hsp-art">' + locArt("hospital.gif", "hsp-img", "hospital", "Hospital") + "</div>" +
+        '<div class="hsp-info">' + hospitalRoomsHtml() + hospitalStatsHtml() + "</div>" +
+      "</div>" +
       '<div id="hspNotice" class="notice-slot">' + hspNoticeHtml() + "</div>" +
-      hospitalRoomsHtml() +
-      hospitalBody() +
-      '<p class="acc-note">The hospital only treats you for now. Running it as a business — its level, wards, ' +
-      "surgery, staff and books — is still to come.</p></div>";
+      hospitalDeskHtml() +
+      hospitalLinksHtml() +
+      "</div>";
   }
 
   /* ================= CANTEEN — the tavern's SECOND FLOOR ================ */
@@ -3248,13 +3274,9 @@
             ? [{ act: "go-houses", html: "You have <b>" + fmt(CF.houses.items()) + "</b> stolen items in your backpack" }]
             : []
         )) : "") +
-        (B.hospital ? box("Hospital information", [
-          { act: "go-hospital", html: CF.hospital.hurt()
-              ? "Your endurance is <b>" + fmt(CF.hospital.endurance()) + "</b> of <b>" +
-                fmt(CF.hospital.maxEndurance()) + "</b> — the hospital will treat you"
-              : "Your endurance is full at <b>" + fmt(CF.hospital.maxEndurance()) + "</b>" },
-          { act: "go-hospital", html: "Treatment costs <b>" + fmt(CF.hospital.price()) +
-              "</b> CC, or one of your <b>" + fmt(CF.hospital.kits()) + "</b> first aid kits" }]) : "") +
+        /* No Hospital box here: endurance already has a row in the sidebar, and
+           a panel that only repeats it is noise. It comes back when the
+           hospital has a business to report on. */
         box("Other information", [
           { act: "acc-streets", html: "Your drug belt holds <b>" + fmt(CF.chemist.beltCap()) + "</b> g (<b>" + fmt(CF.chemist.beltUsed()) + "</b> g used)" },
           { act: "acc-house", html: "Your house is level <b>" + fmt(CF.state.player.houseLevel || 0) + "</b>" }
@@ -3659,10 +3681,13 @@
       { id: "sewer", name: "The sewer", body: function () {
         var u = CF.ruleset.perUpdate, sr = CF.ruleset.sewer, req = CF.sewer.reqWeapon || {};
         var rows = [];
-        for (var L = 2; L <= CF.sewer.maxLevel; L++) {
-          var need = req[L] || 0, have = CF.houses.weaponHandling().level;
-          rows.push("<tr><td>Level " + L + "</td><td>" + (need ? "Weapon handling " + need : "&mdash;") +
-            '</td><td class="' + (have >= need ? "g-yes" : "g-no") + '">' +
+        var S = CF.sewer, have = CF.houses.weaponHandling().level;
+        for (var L = 1; L <= S.maxLevel; L++) {
+          var need = req[L] || 0;
+          var lo = S.levelBase + (L - 1) * S.levelsPerFloor;
+          rows.push("<tr><td>Level " + L + "</td><td>" + lo + " &ndash; " + (lo + S.levelsPerFloor - 1) + "</td>" +
+            "<td>" + (need ? "Weapon handling " + need : "&mdash;") + "</td>" +
+            '<td class="' + (have >= need ? "g-yes" : "g-no") + '">' +
             (have >= need ? "open" : "you are " + have) + "</td></tr>");
         }
         return gTitle("The sewer") +
@@ -3681,9 +3706,25 @@
           '<p class="g-note">Endurance is all or nothing down here. <b>Winning a fight costs you nothing.</b> ' +
           "<b>Losing one empties it</b>, and only a hospital will put it back. So the skill is reading what you " +
           "are looking at and walking away from the ones you cannot take, not counting how many you can afford.</p>" +
+          '<p class="g-note">Read the number on an opponent before you commit. Its colour is that fight as it ' +
+          "would go for <b>you</b>, right now: green you take comfortably, red will finish you. Weapon handling " +
+          "decides what you can kill; <b>endurance decides what you can survive</b>, and the deeper floors hit " +
+          "hard enough that training it is what actually buys you depth.</p>" +
           "<p>The deeper you go the worse the company and the better the pay. Getting down is gated:</p>" +
-          '<table class="g-tab"><tr><th>Depth</th><th>Needs</th><th>Yours</th></tr>' + rows.join("") + "</table>" +
+          '<table class="g-tab"><tr><th>Depth</th><th>Opponents</th><th>Needs</th><th>Yours</th></tr>' +
+          rows.join("") + "</table>" +
           "<p>Chests pay <b>" + fmt(sr.minCC) + "</b> CC and up, scaled by how deep you found them.</p>";
+      } },
+      { id: "bank", name: "Bank", body: function () {
+        return gTitle("Bank") +
+          "<p>Where cash sits when it is not in your pocket. Money on you is what every counter and shop spends; " +
+          "money in the bank is simply out of the way.</p>" +
+          gSteps([
+            "<b>Deposit and withdraw</b> freely between the two. A new account starts with most of its money in " +
+            "the bank, so the first thing you will ever need to do here is take some out.",
+            "<b>The vault is separate from your balance.</b> Treasure chests in the sewer are delivered straight " +
+            "into it, and they never pass through your backpack."]) +
+          '<p class="g-note">Buying the bank, and what the vault items are actually worth, are still to come.</p>';
       } },
       { id: "hospital", name: "Hospital", body: function () {
         return gTitle("Hospital") +
@@ -3846,7 +3887,8 @@
    * in step with the game: a skill missing here cannot be levelled for testing,
    * which is how Cooking and Medical science went untestable for a while. */
   var DBG_SKILLS = ["Barkeeping", "Crafting", "Smithing", "Chemist", "Stealing",
-                    "Gardening", "Cooking", "Medical science", "Endurance", "Strength"];
+                    "Gardening", "Cooking", "Medical science", "Endurance", "Strength",
+                    "Weapon handling"];
   function dbgSkillLevel(sk) {
     return sk === "Barkeeping" ? CF.state.player.drinkMasterLevel
          : sk === "Crafting" ? CF.craft.progress().level
@@ -3976,6 +4018,31 @@
           '<button class="btn warn" data-act="dbg-newdistrict">Generate a new district</button>' +
           '<button class="btn" data-act="dbg-give-items">+10 stolen items</button>' +
         "</div></div>" +
+        /* The sewer had nothing here at all, and a saved floor keeps whatever
+           tiers it was carved with — so "recarve" is the way to pick up a
+           changed monster spread without waiting for an update. */
+        '<div class="field"><label>Sewer</label><div class="dbg-togs">' +
+          '<button class="btn" data-act="dbg-sewer-up">Go up to the street</button>' +
+          (function () {
+            var out = "";
+            for (var L = 1; L <= CF.sewer.maxLevel; L++)
+              out += '<button class="btn' + (CF.houses.level() === L ? " go" : "") +
+                '" data-act="dbg-sewer-level" data-lvl="' + L + '">Level ' + L + "</button>";
+            return out;
+          })() +
+          '<button class="btn warn" data-act="dbg-recarve">Recarve this floor</button>' +
+        "</div></div>" +
+        '<div class="field"><label>Endurance and the hospital</label><div class="dbg-togs">' +
+          '<button class="btn go" data-act="dbg-heal">Refill endurance (' + fmt(CF.sports.enduranceMax()) + ")</button>" +
+          '<button class="btn warn" data-act="dbg-hurt">Empty endurance (to 0)</button>' +
+          '<button class="btn" data-act="dbg-give-kits">+10 first aid kits</button>' +
+        "</div></div>" +
+        '<div class="field"><label>Sewer finds</label><div class="dbg-togs">' +
+          '<button class="btn" data-act="dbg-give-vault">+1 bank vault item</button>' +
+          '<button class="btn" data-act="dbg-give-weapon">+1 cold weapon</button>' +
+          '<span class="dbg-note">vault ' + fmt(Object.keys(CF.houses.vault()).reduce(function (s, k) { return s + CF.houses.vault()[k]; }, 0)) +
+          ", weapons " + fmt(Object.keys(CF.houses.arms()).reduce(function (s, k) { return s + CF.houses.arms()[k]; }, 0)) + "</span>" +
+        "</div></div>" +
         '<div class="field"><label>Warehouse capacity enforcement</label><div class="dbg-togs">' +
           dbgToggle(CF.ruleset.enforceCapacity ? "ON — warehouses can fill up" : "OFF — no limits",
                     CF.ruleset.enforceCapacity, "dbg-toggle-cap") + "</div></div>" +
@@ -4016,11 +4083,13 @@
     // skills with their own curves
     else if (skill === "Stealing") { CF.state.garden.stealPoints = CF.formulas.xpToReachLevelFor("Stealing", level); }
     else if (skill === "Gardening") { CF.state.garden.gardenPoints = CF.formulas.xpToReachLevelFor("Gardening", level); }
-    else if (skill === "Endurance") { CF.state.sports.durabilityPoints = CF.formulas.xpToReachLevelFor("Endurance", level); p.durabilityCur = level; p.durabilityMax = level; }
+    // the bar's size follows the level on its own now; just refill it
+    else if (skill === "Endurance") { CF.state.sports.durabilityPoints = CF.formulas.xpToReachLevelFor("Endurance", level); p.durabilityCur = CF.sports.enduranceMax(); }
     else if (skill === "Strength") { CF.state.sports.powerPoints = CF.formulas.xpToReachLevelFor("Strength", level); }
     // the two that were missing: both store LIFETIME points like the rest
     else if (skill === "Cooking") { CF.state.canteen.cookPoints = CF.formulas.xpToReachLevelFor("Cooking", level); }
     else if (skill === "Medical science") { CF.state.medicine.points = CF.formulas.xpToReachLevelFor("Medical science", level); }
+    else if (skill === "Weapon handling") { CF.state.sports.weaponPoints = CF.formulas.xpToReachLevelFor("Weapon handling", level); }
   }
   function debugUnlimited(skill) {
     var BIG = 1e9;
@@ -4454,6 +4523,33 @@
       case "dbg-newdistrict": CF.houses.rebuild(); ui.hsCamPrev = null; dbgApplied("New district generated"); break;
       case "dbg-give-items": CF.state.houses.items = (CF.state.houses.items || 0) + 10;
         dbgApplied("Stolen items"); break;
+      case "dbg-sewer-level": {
+        var dl = +el.getAttribute("data-lvl");
+        // debug ignores the weapon-handling gate on purpose — that is the point of it
+        CF.state.houses.level = dl;
+        CF.state.houses.maxLevel = Math.max(CF.state.houses.maxLevel || 1, dl);
+        CF.houses.recarve(dl);
+        ui.hsCamPrev = null; dbgApplied("Sewer level " + dl); break;
+      }
+      case "dbg-sewer-up": CF.houses.leaveSewer(); ui.hsCamPrev = null; dbgApplied("Back on the street"); break;
+      case "dbg-recarve":
+        if (!CF.houses.inSewer()) { toast("You are not in the sewer."); break; }
+        CF.houses.recarve(CF.houses.level()); dbgApplied("Floor recarved"); break;
+      case "dbg-heal": CF.state.player.durabilityCur = CF.sports.enduranceMax();
+        dbgApplied("Endurance"); break;
+      case "dbg-hurt": CF.state.player.durabilityCur = 0; dbgApplied("Endurance"); break;
+      case "dbg-give-kits": CF.state.medicine.kits = (CF.state.medicine.kits || 0) + 10;
+        dbgApplied("First aid kits"); break;
+      case "dbg-give-vault": {
+        var vn = CF.bankItemNames[Math.floor(Math.random() * CF.bankItemNames.length)];
+        CF.houses.vault()[vn] = (CF.houses.vault()[vn] || 0) + 1;
+        dbgApplied("Vault (" + vn + ")"); break;
+      }
+      case "dbg-give-weapon": {
+        var cw = CF.coldWeapons[Math.floor(Math.random() * CF.coldWeapons.length)];
+        CF.houses.arms()[cw.name] = (CF.houses.arms()[cw.name] || 0) + 1;
+        dbgApplied("Weapon rack (" + cw.name + ")"); break;
+      }
       case "dbg-replay-intro": ui.debugOpen = false; startOnboarding(); renderAll(); break;
       case "dbg-stock-all": DBG_SKILLS.forEach(function (s) { debugUnlimited(s); }); dbgApplied("Every skill stocked"); break;
       case "dbg-open-office": CF.state.garden.ticketReopenAt = Date.now(); dbgApplied("Ticket office opened"); break;
@@ -4827,6 +4923,25 @@
       /* ---- harbor ---- */
       case "go-harbor": ui.place = "harbor"; ui.hbNotice = null; ui.hbError = null; renderPlace(); break;
       case "go-hospital": ui.place = "hospital"; ui.hspNotice = null; ui.hspError = null; renderPlace(); break;
+      case "hsp-room": {
+        var rm = el.getAttribute("data-room");
+        if (CF.hospital.rooms().live[rm]) { ui.hspNotice = null; ui.hspError = null; renderPlace(); }
+        else toast(rm + " isn't built yet.");
+        break;
+      }
+      /* Straight back down where you got hurt. If you were already in the sewer
+         when you came up here, this returns you to that floor rather than
+         starting you over at level 1. */
+      case "hsp-sewer": {
+        ui.place = "houses"; CF.state.houses.sel = null;
+        ui.hsNotice = null; ui.hsError = null; ui.hsSub = null; ui.hsLevelUp = null;
+        if (!CF.houses.inSewer()) {
+          CF.houses.noteStreetSpot();
+          var hr = CF.houses.enterSewer(1);
+          if (hr.ok) { ui.hsNotice = hr.msg; ui.hsCamPrev = null; } else ui.hsError = hr.msg;
+        }
+        CF.autosave(); renderSidebar(); renderPlace(); break;
+      }
       case "hsp-cash": case "hsp-kit": {
         var tr = a === "hsp-cash" ? CF.hospital.treatForCash() : CF.hospital.treatWithKit();
         if (tr.ok) { ui.hspNotice = tr.msg; ui.hspError = null; CF.autosave(); }

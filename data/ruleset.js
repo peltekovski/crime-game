@@ -101,9 +101,20 @@ CF.ruleset = {
    * The kit route is free of cash and spends one FIRST AID KIT from the
    * medicine laboratory's packing table, which is what finally gives those kits
    * somewhere to go. */
-  hospital: { costPower: 3, kitsPerTreatment: 1, level: 2 },
+  hospital: {
+    costPower: 3, kitsPerTreatment: 1,
+    /* The management figures, straight off the reference's own info block. NONE
+     * of these do anything yet — they are the spec for when the hospital is
+     * built as a business, and they render so the place reads like itself. */
+    level: 2, profitCC: -365000, cleanlinessPct: 70, nursingPct: 100,
+    restRoomM2: 10, restRoomUsedM2: 0, parkingSpaces: 3, carsParked: 0,
+    dailyProfit: 0, debt: 0,
+  },
 
-  sewer: { pointsPerKill: 3, minCC: 2000, maxCC: 9000,
+  /* pointsPerKill 2, not 3: the reference's own kill notices read "You earned 2
+   * weapon handling points" and "...3...", and 2 x hpRatio^tier gives exactly 2
+   * at the shallow end and 3 by the bottom of floor 1. */
+  sewer: { pointsPerKill: 2, minCC: 2000, maxCC: 9000,
            /* Tunnels are CROWDED — the reference's floor has something to fight
             * every few tiles. You are not meant to clear it, only to pick which
             * fights your endurance can pay for. */
@@ -111,6 +122,9 @@ CF.ruleset = {
             * the floor — nothing is placed for you to walk onto. 0.05 was a
             * sensible amount of scenery but a miserly drop, so roughly one
             * fight in five leaves a chest. */
+           /* Exponent on the within-floor tier roll. 1 = flat across the band;
+            * above 1 bunches them at the weak end. */
+           tierSkew: 1,
            monsterChance: 0.28, treasureChance: 0.2, ladderChance: 0.4,
            /* What is in a chest: a numbered bank-vault item, a cold weapon, or
             * (the remainder) cash. The vault items are the ones that matter —
@@ -125,7 +139,21 @@ CF.ruleset = {
             * shallow end trivial (every floor-1 monster a guaranteed kill) or
             * made the deep end unwinnable no matter how much Weapon handling
             * you had. Health tracks your damage; damage tracks your endurance. */
-           hpBase: 60, dmgBase: 3.0, hpRatio: 1.03, dmgRatio: 1.032 },
+           /* Scaled on the monster's TIER (level - 10), so tier 0 is a level-10
+            * monster on floor 1 and tier 47 is a level-57 one on floor 6.
+            *
+            * HEALTH grows slowly and DAMAGE steeply, and they have to. Your
+            * damage comes from Weapon handling and only ever grows about 20x
+            * across the whole game, so monster health has to stay inside that
+            * or the deep floors become arithmetically impossible. The cliff
+            * that stops you therefore has to come from monster DAMAGE, which
+            * is what makes Endurance — trainable to 1000, separately — the
+            * thing that actually buys you depth. Weapon handling decides what
+            * you can kill; endurance decides what you can survive.
+            *
+            * Fitted to two anchors: a fresh character kills up to about level
+            * 14 on floor 1, and floor 2 opens at Weapon handling 15. */
+           hpBase: 35, dmgBase: 8, hpRatio: 1.05, dmgRatio: 1.125 },
 
   /* -- Slum area passes, sold at the market's Ticket counter. The counter's own
    * prices weren't captured, so these are PLACEHOLDERS — swap them for the real
@@ -235,7 +263,15 @@ CF.ruleset = {
      * IS the fix: pointsToNextLevelFor() falls through to pointsToNextLevel(). */
     /* Weapon handling: trained by killing things in the sewer. No reading exists,
      * so this is OUR curve — flat enough that early kills show progress. */
-    "Weapon handling": { ratio: 1.18, anchorLevel: 1, anchorValue: 12 },
+    /* FITTED, and confirmed twice over by one panel: at level 5 it reads
+     * "XP: 49 / 58", so pointsToNext(5) = 58, and the ranking beside it shows a
+     * LIFETIME of 141. Those two pin the ratio between them — levels 1..4 have
+     * to sum to 141 - 49 = 92, and only a ratio near 1.51 does that (1.2 gives
+     * 150, 1.5 gives 93). 1.507 lands on 92.2, and is the same ratio Stealing
+     * was fitted to independently.
+     * The old 1.18/12 was an admitted guess and levelled far too fast: it
+     * wanted 23 points at level 5 where the real thing wants 58. */
+    "Weapon handling": { ratio: 1.507, anchorLevel: 5, anchorValue: 58 },
     // Cooking: the canteen's cooking tables read 1,000 into level 2 with 980
     // still to go, so level 2 costs 1,980. Ratio assumed.
     "Cooking": { ratio: 1.2, anchorLevel: 2, anchorValue: 1980 },

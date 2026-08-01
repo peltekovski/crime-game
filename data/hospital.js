@@ -17,18 +17,26 @@
  * ========================================================================== */
 window.CF = window.CF || {};
 
-/* The rooms the reference lists, in its own two-column order. `live` marks the
- * ones that do something; the rest are here so the place looks like itself. */
-CF.hospitalRooms = [
-  { name: "Manager's room",          live: false },
-  { name: "Rehabilitation wards",    live: false },
-  { name: "Reception area",          live: true  },   // treatment desk
-  { name: "Surgery department",      live: false },
-  { name: "Cleaners' room",          live: false },
-  { name: "Plastic surgeon's office", live: false },
-  { name: "Parking spaces",          live: false },
-  { name: "Trauma center",           live: false },
-  { name: "Infirmary",               live: false },
+/* The rooms, in the reference's own TWO COLUMNS — four on the left, five on the
+ * right. Only Reception does anything (it is the treatment desk); the rest are
+ * listed so the place reads like itself and say so when clicked. */
+CF.hospitalRooms = {
+  left:  ["Manager's room", "Reception area", "Cleaners' room", "Parking spaces"],
+  right: ["Rehabilitation wards", "Surgery department", "Plastic surgeon's office",
+          "Trauma center", "Infirmary"],
+  live:  { "Reception area": true },
+};
+
+/* The two links the reference puts under the hospital — the places that put you
+ * in here in the first place. The boxing ring is the Sports complex's Boxing
+ * Hall; the second is the SEWER.
+ *
+ * ("Rental shop" was the machine translation reading "Rentsel" as a rental
+ * business. Rentsel is the sewer, which is why the link belongs there and why
+ * the label says so.) */
+CF.hospitalLinks = [
+  { label: "Go to the boxing ring", act: "acc-sports", fac: "boxing", before: "« " },
+  { label: "Go to the sewer", act: "hsp-sewer", after: " »" },
 ];
 
 CF.hospital = (function () {
@@ -36,8 +44,8 @@ CF.hospital = (function () {
   var ok = function (m, x) { var r = { ok: true, msg: m }; if (x) for (var k in x) r[k] = x[k]; return r; };
   var fail = function (m) { return { ok: false, msg: m }; };
 
-  function maxEndurance() { return P().durabilityMax || 1; }
-  function endurance() { return P().durabilityCur || 0; }
+  function maxEndurance() { return CF.sports.enduranceMax(); }
+  function endurance() { return CF.sports.enduranceCur(); }
   function hurt() { return endurance() < maxEndurance(); }
 
   /* Cash price. Cubed, per the one exact reading (45 -> 91,125). */
@@ -57,7 +65,7 @@ CF.hospital = (function () {
     if (P().money < c) return fail("Treatment costs " + fmt(c) + " CC and you have " + fmt(P().money) + ".");
     P().money -= c;
     heal();
-    return ok("The doctors patched you up for " + fmt(c) + " CC. Your endurance is full again.");
+    return ok("You were cured!");
   }
 
   function treatWithKit() {
@@ -67,11 +75,14 @@ CF.hospital = (function () {
                                 " and you have " + fmt(kits()) + ". They are packed at the medicine laboratory.");
     CF.state.medicine.kits -= n;
     heal();
-    return ok("A nurse used one of your own first aid kits. Your endurance is full again.");
+    return ok("You were cured!");
   }
 
+  /* The info block's numbers. All static — see ruleset.hospital. */
+  function stats() { return CF.ruleset.hospital; }
+
   return {
-    rooms: function () { return CF.hospitalRooms; },
+    rooms: function () { return CF.hospitalRooms; }, stats: stats,
     maxEndurance: maxEndurance, endurance: endurance, hurt: hurt,
     price: price, kits: kits, kitsNeeded: kitsNeeded,
     treatForCash: treatForCash, treatWithKit: treatWithKit,

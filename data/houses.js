@@ -99,7 +99,21 @@ CF.bankItemNames = [
  * wait for it to come back).
  * ========================================================================== */
 CF.sewer = {
+  /* Bump this whenever the way a floor is CARVED changes — tile types, monster
+   * spread, ladder or treasure rules. A carved floor lives in the save, so
+   * without a stamp a player already underground keeps the old floor forever
+   * (which is exactly how a save ended up with none of the low tiers on level
+   * 1 long after the spread was fixed). `ensureSewer` re-cuts on a mismatch. */
+  buildVersion: 4,
   maxLevel: 6,
+  /* MONSTER LEVELS ARE NOT LIST POSITIONS. The reference keeps a monster's name
+   * and its level as separate things, and the first floor carries levels 10 to
+   * 17 — there is no such thing as a level-1 monster. Eight levels a floor over
+   * six floors gives 10..57, i.e. 48 levels, and the name list is 96 long:
+   * exactly TWO creatures per level, which is what pins the arrangement.
+   *   floor 1: 10-17   floor 2: 18-25   floor 3: 26-33
+   *   floor 4: 34-41   floor 5: 42-49   floor 6: 50-57 */
+  levelBase: 10, levelsPerFloor: 8, namesPerLevel: 2,
   /* Weapon handling needed to go DOWN to each level. Level 2 needing 15 is the
    * one figure we were given; the rest continue it in the same steps, sitting a
    * little above what the floor's monsters actually demand so the gate is the
@@ -204,6 +218,7 @@ CF.houses = (function () {
   }
   function cellAt(x, y) {
     if (inSewer()) {
+      ensureSewer();
       var c = sewerCell(x, y);
       if (!c) return null;
       if (c.t === 1) return "wall";
@@ -244,6 +259,14 @@ CF.houses = (function () {
   function level() { return H().level || 0; }
   function inSewer() { return level() > 0; }
   function moveKey() { return inSewer() ? "sewerGear" : "houseGear"; }
+  /* Re-cut the floor you are standing on if it was carved by older rules. A
+   * floor is saved, so without this a player who was underground when the rules
+   * changed would keep the old one indefinitely — no amount of fixing the
+   * spread would reach them until they happened to climb or wait for an update. */
+  function ensureSewer() {
+    if (!inSewer()) return;
+    if (!H().sewerCells || H().sewerBuild !== CF.sewer.buildVersion) buildSewer(level());
+  }
   function sewerCell(x, y) { return (H().sewerCells || {})[key(x, y)]; }
 
   /* The sewer is the SAME LATTICE as the street above it, re-skinned: brick
@@ -282,18 +305,24 @@ CF.houses = (function () {
      * that is the point: you cannot clear it, you pick your fights.
      * NO treasure is placed here: chests are DROPPED by what you kill, so the
      * only way to find one is to win a fight. */
-    var band = Math.floor(CF.sewer.monsters.length / CF.sewer.maxLevel);
     for (y = 0; y < M.h; y++) for (x = 0; x < M.w; x++) {
       var cell = cells[key(x, y)];
       if (cell.t === 1 || cell.t === CF.sewer.LADDER) continue;
       if (Math.random() < sr.monsterChance) {
         cell.tt = 1;
-        // skewed low: most of a floor is fightable, a few are a warning
-        cell.m = Math.min(CF.sewer.monsters.length - 1,
-                          (lvl - 1) * band + Math.floor(Math.pow(Math.random(), 1.7) * band));
+        /* Spread EVENLY across the floor's eight levels. An earlier exponent
+         * bunched almost everything at the weak end, so you met nothing but the
+         * easiest and could clear a floor without ever losing. Flat means the
+         * top of the band turns up often enough that reading the badge before
+         * you commit is the actual skill. */
+        var band = CF.sewer.levelsPerFloor;
+        cell.m = CF.sewer.levelBase + (lvl - 1) * band +
+                 Math.floor(Math.pow(Math.random(), CF.ruleset.sewer.tierSkew) * band);
+        cell.mn = Math.floor(Math.random() * CF.sewer.namesPerLevel);   // which of the two
       }
     }
     H().sewerCells = cells;
+    H().sewerBuild = CF.sewer.buildVersion;    // stamped, so a stale floor is detectable
     // the renderer and every loop read w/h off the state, and only the street
     // builder used to set them — enter the sewer first and they stayed 0
     H().w = M.w; H().h = M.h;
@@ -345,11 +374,17 @@ CF.houses = (function () {
     H().py = H().streetY != null ? H().streetY : Math.floor(M.h / 2);
     return ok("You climb back up into the street.");
   }
+  /* `m` stores the monster's LEVEL (10..57), not a list position — see the
+     CF.sewer header. Two creatures share each level; `mn` says which. */
+  function monsterLevel(c) { return c.m || CF.sewer.levelBase; }
+  function monsterTier(lvl) { return Math.max(0, lvl - CF.sewer.levelBase); }
   function monsterAt(x, y) {
     var c = sewerCell(x, y);
     if (!c || c.tt !== 1) return null;
-    var idx = c.m || 0;
-    return { name: CF.sewer.monsters[idx], level: idx + 1, idx: idx };
+    var lvl = monsterLevel(c);
+    var idx = Math.min(CF.sewer.monsters.length - 1,
+                       monsterTier(lvl) * CF.sewer.namesPerLevel + (c.mn || 0));
+    return { name: CF.sewer.monsters[idx], level: lvl, tier: monsterTier(lvl), idx: idx };
   }
   function treasureAt(x, y) { var c = sewerCell(x, y); return !!(c && c.tt === 2); }
 
@@ -439,7 +474,7 @@ CF.houses = (function () {
     var mon = monsterAt(x, y);
     if (!mon) return fail("There is nothing to fight there.");
     if (!standingOn(x, y)) return fail("Get to it first.");
-    if ((P().durabilityCur || 0) <= 0) return fail("Your endurance is 0 — you need a hospital.");
+    if (CF.sports.enduranceCur() <= 0) return fail("Your endurance is 0 — you need a hospital.");
     var me = fightPower();
     /* GEOMETRIC, not linear. Skills run 1..1000, so a linear monster curve is
      * flat by comparison: the old one was cleared end to end by Weapon handling
@@ -451,10 +486,10 @@ CF.houses = (function () {
      * Measured, 1500 fights a cell: on your own floor 100% for a fifth to a
      * quarter of the bar, the floor below is a coin toss, two below is a wall. */
     var s = CF.ruleset.sewer;
-    var mHp = s.hpBase * Math.pow(s.hpRatio, mon.level);
-    var mDmg = s.dmgBase * Math.pow(s.dmgRatio, mon.level);
-    var scale = Math.pow(s.hpRatio, mon.level);       // the reward follows health
-    var myHp = P().durabilityCur, rounds = 0, taken = 0;
+    var mHp = s.hpBase * Math.pow(s.hpRatio, mon.tier);
+    var mDmg = s.dmgBase * Math.pow(s.dmgRatio, mon.tier);
+    var scale = Math.pow(s.hpRatio, mon.tier);        // the reward follows health
+    var myHp = CF.sports.enduranceCur(), rounds = 0, taken = 0;
     while (mHp > 0 && myHp > 0 && rounds++ < 60) {
       mHp -= Math.max(1, Math.round(me.dmg * (0.75 + Math.random() * 0.5)));
       if (mHp <= 0) break;
@@ -499,13 +534,19 @@ CF.houses = (function () {
     var mon = monsterAt(x, y);
     if (!mon) return null;
     var s = CF.ruleset.sewer, me = fightPower();
-    var mHp = s.hpBase * Math.pow(s.hpRatio, mon.level);
-    var mDmg = s.dmgBase * Math.pow(s.dmgRatio, mon.level);
+    var mHp = s.hpBase * Math.pow(s.hpRatio, mon.tier);
+    var mDmg = s.dmgBase * Math.pow(s.dmgRatio, mon.tier);
+    var cur = CF.sports.enduranceCur();
+    // flat on your back, everything is deadly — and the ratio would blow up
+    if (cur <= 0) return { level: mon.level, name: mon.name, ratio: Infinity, band: "deadly" };
     var toKill = mHp / Math.max(1, me.dmg);
-    var toDie = Math.max(0.001, P().durabilityCur || 0) / Math.max(0.001, mDmg);
+    var toDie = cur / Math.max(0.001, mDmg);
     var ratio = toKill / toDie;
+    /* Thresholds calibrated against MEASURED win rates, not guessed: ratio 0.94
+     * wins 99% of the time, 1.11 wins 87%, 1.31 wins 52%, 1.55 wins 18% and
+     * 1.83 wins 1%. Re-measure these if the combat constants move. */
     return { level: mon.level, name: mon.name, ratio: ratio,
-             band: ratio < 0.6 ? "easy" : ratio < 0.95 ? "fair" : ratio < 1.3 ? "risky" : "deadly" };
+             band: ratio < 1.0 ? "easy" : ratio < 1.2 ? "fair" : ratio < 1.45 ? "risky" : "deadly" };
   }
   function takeTreasure(x, y) {
     if (!treasureAt(x, y)) return fail("There is no treasure there.");
@@ -663,6 +704,11 @@ CF.houses = (function () {
     takeTreasure: takeTreasure, climb: climb, weaponHandling: weaponHandling,
     noteStreetSpot: function () { H().streetX = H().px; H().streetY = H().py; },
     moves: moves, movesMax: movesMax, vault: vault, arms: arms, threat: threat,
+    /* Re-cut the current floor in place. A saved floor keeps the tiers it was
+       carved with, so this is how a changed monster spread reaches a save that
+       is already underground. */
+    recarve: function (lvl) { return buildSewer(lvl || level() || 1); },
+    ensureSewer: ensureSewer,
     descendBlocker: descendBlocker,
     items: function () { return H().items || 0; },
     equipment: function () { return H().equipment || 0; },
