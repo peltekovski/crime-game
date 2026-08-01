@@ -2246,3 +2246,20 @@ select:focus-visible,
 .ht-lvl.fair   { background: #7a8b1e; }
 .ht-lvl.risky  { background: #c47a10; }
 .ht-lvl.deadly { background: #9c1f16; }
+
+/* ---- Bank ----------------------------------------------------------------
+   Room links in two columns, then the info block and the level/upgrade box,
+   with the bank's picture beside them — the reference's own arrangement. */
+.bank-top { display: flex; gap: 14px; align-items: flex-start; padding: 10px 12px 4px; }
+.bank-left { flex: 1 1 auto; min-width: 0; text-align: center; }
+.bank-art { flex: none; }
+.bank-img { max-width: 100%; height: auto; image-rendering: pixelated; }
+.bank-rooms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 18px; text-align: center; }
+.bank-room { padding: 1px 0; font-weight: bold; }
+.bank-room a.on { color: var(--ink); text-decoration: none; }
+.bank-rule { border: none; border-top: 1px solid #000; margin: 8px 0; }
+.bank-info p, .bank-upg { margin: 4px 0; font-size: 11px; }
+.bank-lvl { font-style: italic; color: #1f4e9c; font-weight: bold; margin: 6px 0 4px; }
+.bank-body { padding: 0 12px 12px; }
+.bank-items { margin: 0 auto 8px; }
+.bank-empty { text-align: center; color: var(--muted); margin: 10px 0; }

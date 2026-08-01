@@ -224,6 +224,7 @@ CF.newAccount = function () {
       credits: s.credits,
       tokens: s.tokens,
       bank: s.bank,
+      bankLevel: 1,                             // img/bank-1..12.gif
       drinkStatus: 0,
       fame: cos.fame,
       activityPct: cos.activityPct,
@@ -354,6 +355,7 @@ CF.reconcileState = function () {
   // vault + weapon rack arrived with the sewer's chests; older saves lack them
   if (!CF.state.vault) CF.state.vault = {};
   if (!CF.state.arms) CF.state.arms = {};
+  if (!CF.state.player.bankLevel) CF.state.player.bankLevel = 1;
   /* The endurance bar's size is the Endurance level now. Older saves carry a
      durabilityMax frozen at account creation and a durabilityCur that may sit
      ABOVE it — which made sewer fights unloseable. Re-clamp on load. */

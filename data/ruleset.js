@@ -56,7 +56,26 @@ CF.ruleset = {
            firstLevelSkill: "Barkeeping", firstLevelReq: 10 },
 
   /* Bank: deposit/withdraw works; buying the bank itself isn't built. */
-  bank: { buyPriceCC: 50000000 },
+  /* -- THE BANK. Read off the reference's own page (level 2 account):
+   *      "Sul on pangas 5,342,215,300 CC"           your balance
+   *      "Kliendid hoiavad siin 24,682,199 CC"      what clients keep here
+   *      "Panga reputatsioon on 27,420,000"
+   *      "Varakambrite väärtus on 337,310,000 CC"   value of the vaults
+   *      "Varakambrites on 9 eset ja pangas 30 eset" 9 items in the vaults, 30 in the bank
+   *      "Sinu panga level on 2"
+   *      "Täiustamine maksab 1,350,000,000 CC ja vajab 40 erinevat panga eset"
+   *
+   * So the ONE upgrade reading we have is level 2 -> 3: 1,350,000,000 CC and 40
+   * DIFFERENT bank items. Cost per level uses x3, the same ratio the house
+   * ladder uses, anchored on that figure — OUR extrapolation, not observed.
+   * Levels run to 12 because img/bank-1..12.gif exist. */
+  bank: {
+    buyPriceCC: 50000000,
+    maxLevel: 12,
+    upgradeAnchorLevel: 2, upgradeAnchorCC: 1350000000, upgradeRatio: 3,
+    upgradeAnchorItems: 40, upgradeItemsPerLevel: 20,
+    vaultMaxLevel: 5,             // img/vault-1..5.gif
+  },
 
   /* -- Locations gated behind a HOUSE level (observed on a fresh account):
    *   "To get to the slum, your house must be at least level 1!"

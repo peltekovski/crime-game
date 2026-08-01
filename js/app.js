@@ -2429,22 +2429,80 @@
   }
 
   /* ============================ BANK =================================== */
-  function renderBank() {
+  /* The five room links, in the reference's own two columns. */
+  function bankRoomsHtml() {
+    function col(list) {
+      return "<div>" + list.map(function (r) {
+        return '<div class="bank-room"><a data-act="bank-room" data-room="' + r.id + '"' +
+          (ui.bankRoom === r.id ? ' class="on"' : "") + ">" + esc(r.name) + "</a></div>";
+      }).join("") + "</div>";
+    }
+    return '<div class="bank-rooms">' + col(CF.bankRooms.left) + col(CF.bankRooms.right) + "</div>";
+  }
+  /* The info block, line for line as the reference prints it. */
+  function bankInfoHtml() {
+    var B = CF.bank, p = CF.state.player;
+    return '<div class="bank-info">' +
+      "<p>You have <b>" + fmt(p.bank || 0) + "</b> CC in the bank<br>" +
+      "Clients keep here <b>" + fmt(B.clientsHold()) + "</b> CC<br>" +
+      "The bank's reputation is <b>" + fmt(B.reputation()) + "</b><br>" +
+      "The value of the vaults is <b>" + fmt(B.vaultValue()) + "</b> CC<br>" +
+      "There are <b>" + fmt(B.itemTotal()) + "</b> items in the vaults</p>" +
+      "</div>";
+  }
+  function bankUpgradeHtml() {
+    var B = CF.bank, max = CF.ruleset.bank.maxLevel;
+    var h = '<div class="bank-lvl"><em>Your bank level is ' + B.level() + "</em></div>";
+    if (B.level() >= max) return h + '<div class="bank-upg">The bank cannot be improved any further.</div>';
+    return h + '<div class="bank-upg"><b>[</b><a data-act="bank-upgrade">IMPROVE</a><b>]</b><br>' +
+      "Improving costs <b>" + fmt(B.upgradeCost()) + "</b> CC<br>" +
+      "and needs <b>" + fmt(B.upgradeItems()) + "</b> different bank items " +
+      "(you have <b>" + fmt(B.itemsDifferent()) + "</b>)</div>";
+  }
+  /* "Settle with cash" — the page the reference source actually covers. */
+  function bankCashHtml() {
     var p = CF.state.player;
+    return '<table class="formtbl bank-tbl">' +
+      "<tr><td>How much do you want to put in the bank?</td>" +
+        '<td><input type="number" id="bankPut" min="0" value="' + fmt0(p.money) + '"> ' +
+        '<button class="btn" data-act="bank-put">Put</button></td></tr>' +
+      "<tr><td>How much do you want to take out of the bank?</td>" +
+        '<td><input type="number" id="bankTake" min="0" value="' + fmt0(p.bank || 0) + '"> ' +
+        '<button class="btn" data-act="bank-take">Take</button></td></tr></table>';
+  }
+  /* "Bank items" — what the sewer has delivered into the vault. */
+  function bankItemsHtml() {
+    var B = CF.bank, v = B.items();
+    var names = CF.bankItemNames.filter(function (n) { return (v[n] || 0) > 0; });
+    if (!names.length) {
+      return '<p class="bank-empty">There is nothing in the vaults yet. Bank items come from the ' +
+        '<a data-act="hsp-sewer">treasure chests in the sewer</a> — every chest is delivered straight in here.</p>';
+    }
+    var rows = names.map(function (n) {
+      return "<tr><td>" + (CF.bankItemNames.indexOf(n) + 1) + ".</td><td>" + esc(n) + "</td>" +
+        "<td>" + fmt(v[n]) + "</td><td>" + fmt(B.itemValue(n) * v[n]) + " CC</td></tr>";
+    }).join("");
+    return '<table class="g-tab bank-items"><tr><th>No.</th><th>Item</th><th>Held</th><th>Worth</th></tr>' +
+      rows + "</table>" +
+      '<p class="bank-empty">' + fmt(B.itemTotal()) + " items, <b>" + fmt(B.itemsDifferent()) +
+      "</b> of them different. The improvement upstairs wants <b>" + fmt(B.upgradeItems()) + "</b> different.</p>";
+  }
+  function renderBank() {
+    var room = ui.bankRoom || "cash";
+    var body = room === "cash" ? bankCashHtml()
+             : room === "items" ? bankItemsHtml()
+             : '<p class="bank-empty">This part of the bank isn\'t built yet.</p>';
     $("locationPanel").innerHTML =
-      '<div class="panel"><div class="bar">Bank</div>' +
-      '<div class="bank-top"><div class="bank-left"><a data-act="bank-buy">Buy the bank for ' + fmt(CF.ruleset.bank.buyPriceCC) + " CC</a>" +
-        '<div class="bank-have">You have <b>' + fmt(p.bank || 0) + "</b> CC in the bank.</div></div>" +
-        '<div class="loc-art">' + locArt("0.gif", "loc-img", "bank", "Bank") + "</div></div>" +
+      '<div class="panel bank"><div class="bar">Bank</div>' +
+      '<div class="bank-top">' +
+        '<div class="bank-left">' + bankRoomsHtml() +
+          '<hr class="bank-rule">' + bankInfoHtml() +
+          '<hr class="bank-rule">' + bankUpgradeHtml() + "</div>" +
+        '<div class="bank-art">' + locArt("bank-" + CF.bank.level() + ".gif", "bank-img", "bank", "Bank") + "</div>" +
+      "</div>" +
       '<div id="bankNotice" class="notice-slot">' +
         noticeHtml({ err: ui.bankError, msg: ui.bankNotice, reserve: true }) + "</div>" +
-      '<table class="formtbl bank-tbl">' +
-        "<tr><td>How much do you want to put in the bank?</td>" +
-          '<td><input type="number" id="bankPut" min="0" value="' + fmt0(p.money) + '"> ' +
-          '<button class="btn" data-act="bank-put">Put</button></td></tr>' +
-        "<tr><td>How much do you want to take out of the bank?</td>" +
-          '<td><input type="number" id="bankTake" min="0" value="' + fmt0(p.bank || 0) + '"> ' +
-          '<button class="btn" data-act="bank-take">Take</button></td></tr></table>' +
+      '<div class="bank-body">' + body + "</div>" +
       "</div>";
   }
   function fmt0(n) { return Math.max(0, Math.floor(n || 0)); }
@@ -4575,24 +4633,26 @@
       case "go-house": ui.place = "house"; ui.houseView = null; renderPlace(); break;
       case "house-upgrade": { var hu = houseUpgrade(); toast(hu.msg, hu.ok ? "" : "err"); if (hu.ok) { CF.autosave(); renderSidebar(); renderPlace(); } break; }
       case "go-slum": ui.place = "slum"; renderPlace(); break;
-      case "go-bank": ui.place = "bank"; ui.bankNotice = null; ui.bankError = null; renderPlace(); break;
+      case "go-bank": ui.place = "bank"; ui.bankRoom = ui.bankRoom || "cash"; ui.bankNotice = null; ui.bankError = null; renderPlace(); break;
       case "go-casino": ui.place = "casino"; renderPlace(); break;
       case "go-racing": ui.place = "racing"; renderPlace(); break;
       case "bank-buy": toast("Feature not built yet.", "err"); break;
-      case "bank-put": {
+      case "bank-room": {
+        var br = el.getAttribute("data-room");
+        var meta = CF.bankRooms.left.concat(CF.bankRooms.right).filter(function (r) { return r.id === br; })[0];
+        if (meta && !meta.live) { toast(meta.name + " isn't built yet."); break; }
+        ui.bankRoom = br; ui.bankNotice = null; ui.bankError = null; renderPlace(); break;
+      }
+      case "bank-put": case "bank-take": {
         ui.bankNotice = null; ui.bankError = null;
-        var pv = num("bankPut", 0), pl2 = CF.state.player;
-        if (pv <= 0) ui.bankError = "Enter an amount.";
-        else if (pv > pl2.money) ui.bankError = "You only have " + fmt(pl2.money) + " CC on hand.";
-        else { pl2.money -= pv; pl2.bank = (pl2.bank || 0) + pv; ui.bankNotice = "You put " + fmt(pv) + " CC in the bank."; CF.autosave(); }
+        var br2 = a === "bank-put" ? CF.bank.deposit(num("bankPut", 0)) : CF.bank.withdraw(num("bankTake", 0));
+        if (br2.ok) { ui.bankNotice = br2.msg; CF.autosave(); } else ui.bankError = br2.msg;
         renderSidebar(); renderPlace(); break;
       }
-      case "bank-take": {
+      case "bank-upgrade": {
         ui.bankNotice = null; ui.bankError = null;
-        var tv = num("bankTake", 0), pl3 = CF.state.player;
-        if (tv <= 0) ui.bankError = "Enter an amount.";
-        else if (tv > (pl3.bank || 0)) ui.bankError = "You only have " + fmt(pl3.bank || 0) + " CC in the bank.";
-        else { pl3.bank -= tv; pl3.money += tv; ui.bankNotice = "You took " + fmt(tv) + " CC from the bank."; CF.autosave(); }
+        var ur = CF.bank.upgrade();
+        if (ur.ok) { ui.bankNotice = ur.msg; CF.autosave(); } else ui.bankError = ur.msg;
         renderSidebar(); renderPlace(); break;
       }
       /* ---- casino ---- */
