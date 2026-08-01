@@ -4,7 +4,58 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Crime Factory — Tavern Prototype</title>
-<link rel="stylesheet" href="css/style.css?v=143">
+<link rel="stylesheet" href="css/style.css?v=159">
+
+<!-- BOOT GUARD. Must come before every other script.
+
+     A syntax error in any one file stops the browser at the parse error: no
+     handler runs, the page renders empty, and NOTHING reaches the console. A
+     blank game and a clean console is the least useful pair of signals there
+     is, and chasing it has wasted real time on this project more than once.
+
+     So: catch the error while it is still happening, and say what broke and
+     where. Also fires for a script that fails to load at all (a typo in a
+     filename, a stale cache-busting version). -->
+<script>
+(function () {
+  var shown = false;
+  function banner(title, detail) {
+    if (shown) return;                       // the first failure is the useful one
+    shown = true;
+    var d = document.createElement("div");
+    d.id = "bootError";
+    d.setAttribute("style",
+      "position:fixed;left:0;right:0;top:0;z-index:99999;padding:10px 14px;" +
+      "background:#7d1a12;color:#fff;font:12px/1.5 Tahoma,sans-serif;" +
+      "box-shadow:0 2px 8px rgba(0,0,0,.4)");
+    d.innerHTML = "<b>" + title + "</b><br>" + detail +
+      "<br><span style='opacity:.8'>The rest of the game did not load. " +
+      "Fix this file and refresh.</span>";
+    function place() { (document.body || document.documentElement).appendChild(d); }
+    if (document.body) place(); else document.addEventListener("DOMContentLoaded", place);
+  }
+
+  window.addEventListener("error", function (e) {
+    if (e && e.target && e.target.tagName === "SCRIPT" && e.target.src) {
+      banner("A script failed to load", e.target.src.replace(location.origin, ""));
+      return;
+    }
+    if (!e || !e.message) return;
+    var where = e.filename ? e.filename.replace(location.origin, "") : "unknown file";
+    banner(e.message, where + (e.lineno ? "  line " + e.lineno : ""));
+  }, true);                                   // capture, so script load failures are seen
+
+  /* Last line of defence: everything parsed but the app never came up. */
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      if (!window.CF || !CF.state) {
+        banner("The game did not start",
+               "All files loaded, but the app never initialised.");
+      }
+    }, 200);
+  });
+})();
+</script>
 </head>
 <body>
 <div id="game">
@@ -28,26 +79,28 @@
 
 <!-- data -> formulas -> state -> logic -> UI. Classic scripts sharing the CF
      global (file:// blocks fetch()/modules). -->
-<script src="data/ruleset.js?v=143"></script>
-<script src="data/materials.js?v=143"></script>
-<script src="data/recipes.js?v=143"></script>
-<script src="data/crafting.js?v=143"></script>
-<script src="data/blacksmith.js?v=143"></script>
-<script src="data/chemist.js?v=143"></script>
-<script src="data/garden.js?v=143"></script>
-<script src="data/sports.js?v=143"></script>
-<script src="data/casino.js?v=143"></script>
-<script src="data/betting.js?v=143"></script>
-<script src="data/houses.js?v=143"></script>
-<script src="data/medicine.js?v=143"></script>
-<script src="data/hospital.js?v=143"></script>
-<script src="data/bank.js?v=143"></script>
-<script src="data/canteen.js?v=143"></script>
-<script src="data/harbor.js?v=143"></script>
-<script src="js/formulas.js?v=143"></script>
-<script src="js/state.js?v=143"></script>
-<script src="js/tavern.js?v=143"></script>
-<script src="js/craft.js?v=143"></script>
-<script src="js/app.js?v=143"></script>
+<script src="data/ruleset.js?v=159"></script>
+<script src="data/materials.js?v=159"></script>
+<script src="data/recipes.js?v=159"></script>
+<script src="data/crafting.js?v=159"></script>
+<script src="data/blacksmith.js?v=159"></script>
+<script src="data/chemist.js?v=159"></script>
+<script src="data/garden.js?v=159"></script>
+<script src="data/sports.js?v=159"></script>
+<script src="data/casino.js?v=159"></script>
+<script src="data/betting.js?v=159"></script>
+<script src="data/houses.js?v=159"></script>
+<script src="data/medicine.js?v=159"></script>
+<script src="data/hospital.js?v=159"></script>
+<script src="data/bankitems.js?v=159"></script>
+<script src="data/bank.js?v=159"></script>
+<script src="data/vaults.js?v=159"></script>
+<script src="data/canteen.js?v=159"></script>
+<script src="data/harbor.js?v=159"></script>
+<script src="js/formulas.js?v=159"></script>
+<script src="js/state.js?v=159"></script>
+<script src="js/tavern.js?v=159"></script>
+<script src="js/craft.js?v=159"></script>
+<script src="js/app.js?v=159"></script>
 </body>
 </html>

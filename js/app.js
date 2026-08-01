@@ -2446,8 +2446,9 @@
       "<p>You have <b>" + fmt(p.bank || 0) + "</b> CC in the bank<br>" +
       "Clients keep here <b>" + fmt(B.clientsHold()) + "</b> CC<br>" +
       "The bank's reputation is <b>" + fmt(B.reputation()) + "</b><br>" +
-      "The value of the vaults is <b>" + fmt(B.vaultValue()) + "</b> CC<br>" +
-      "There are <b>" + fmt(B.itemTotal()) + "</b> items in the vaults</p>" +
+      "The value of the vaults is <b>" + fmt(CF.vaults.value()) + "</b> CC<br>" +
+      "There are <b>" + fmt(CF.vaults.differentHeld()) + "</b> items in the vaults and <b>" +
+      fmt(B.itemTotal()) + "</b> items in the bank</p>" +
       "</div>";
   }
   function bankUpgradeHtml() {
@@ -2470,28 +2471,190 @@
         '<td><input type="number" id="bankTake" min="0" value="' + fmt0(p.bank || 0) + '"> ' +
         '<button class="btn" data-act="bank-take">Take</button></td></tr></table>';
   }
-  /* "Bank items" — what the sewer has delivered into the vault. */
+  /* "Bank items" — the numbered catalogue, grouped by category, each with its
+     condition out of 80 and a tick-box when it needs maintaining. */
   function bankItemsHtml() {
-    var B = CF.bank, v = B.items();
-    var names = CF.bankItemNames.filter(function (n) { return (v[n] || 0) > 0; });
-    if (!names.length) {
-      return '<p class="bank-empty">There is nothing in the vaults yet. Bank items come from the ' +
+    var B = CF.bank, R = CF.ruleset.bank;
+    B.settleCondition();
+    var owned = B.ownedNumbers();
+    if (!owned.length) {
+      return '<p class="bank-empty">There is nothing here yet. Bank items come from the ' +
         '<a data-act="hsp-sewer">treasure chests in the sewer</a> — every chest is delivered straight in here.</p>';
     }
-    var rows = names.map(function (n) {
-      return "<tr><td>" + (CF.bankItemNames.indexOf(n) + 1) + ".</td><td>" + esc(n) + "</td>" +
-        "<td>" + fmt(v[n]) + "</td><td>" + fmt(B.itemValue(n) * v[n]) + " CC</td></tr>";
+    var left = B.maintainLeft();
+    var head = '<p class="bank-care">This hour you can maintain <b>' + left + '</b> more item' +
+      (left === 1 ? "" : "s") + '.<br><span class="nb">NOTE! You can maintain ' + R.maintainPerHour +
+      " items an hour.</span></p>" +
+      '<div class="bank-careline"><button class="btn" data-act="bank-maintain">Maintain selected items</button>' +
+      '<span class="bank-sort">' + bankSortHtml() + "</span></div>";
+
+    var rows = "", cats = CF.bankItemCategories;
+    if ((ui.bankSort || "no") === "no") {
+      cats.forEach(function (g) {
+        var mine = owned.filter(function (n) { return n >= g.from && n <= g.to; });
+        if (!mine.length) return;
+        rows += '<tr class="bank-cat"><td colspan="4">' + esc(g.name) + "</td></tr>";
+        mine.forEach(function (n) { rows += bankItemRow(n); });
+      });
+    } else {
+      var sorted = owned.slice().sort(function (a, b) { return B.condition(a) - B.condition(b); });
+      sorted.forEach(function (n) { rows += bankItemRow(n); });
+    }
+    return head + '<table class="bank-list">' + rows + "</table>" +
+      '<div class="bank-careline"><button class="btn" data-act="bank-maintain">Maintain selected items</button></div>' +
+      '<p class="bank-empty">' + fmt(owned.length) + " of " + fmt(CF.bankItems.count) +
+      " items. The improvement upstairs wants <b>" + fmt(B.upgradeItems()) + "</b> different.</p>";
+  }
+  function bankSortHtml() {
+    // the reference offers exactly two: "Numbri järgi" and "Hoolduse järgi"
+    var opts = [["no", "By number"], ["cond", "By maintenance"]];
+    return '<select id="bankSort" data-role="banksort">' + opts.map(function (o) {
+      return '<option value="' + o[0] + '"' + ((ui.bankSort || "no") === o[0] ? " selected" : "") +
+        ">" + o[1] + "</option>";
+    }).join("") + "</select>";
+  }
+  function bankItemRow(n) {
+    var B = CF.bank, max = B.condMax(), c = B.condition(n);
+    var pct = Math.max(0, Math.min(100, c / max * 100));
+    var v = CF.bankItems.value(n);
+    // the whole row toggles its tick-box, so you are not aiming at a 13px target
+    var pick = c < max;
+    return '<tr' + (pick ? ' class="bk-row" data-act="bank-pick" data-no="' + n + '"' : ' class="bk-done"') + ">" +
+      '<td class="bk-ck">' + (pick ? '<input type="checkbox" class="bkck" data-no="' + n + '">' : "") + "</td>" +
+      '<td class="bk-bar"><span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span></td>' +
+      '<td class="bk-cond">' + c + "/" + max + "</td>" +
+      "<td><b>" + n + ".</b> " + esc(CF.bankItems.name(n)) +
+      " <b>(value: " + (v == null ? "priceless" : fmt(v) + " CC") + ")</b></td></tr>";
+  }
+  /* "Bank warehouse" — ONE panel. The reference has three (market for play
+     money, market for credits, sell immediately) but there is nobody to sell to
+     on a market here and the credit economy is skipped, so all that survives is
+     the immediate sale, and everything pays CC. */
+  function bankStoreHtml() {
+    var B = CF.bank, R = CF.ruleset.bank;
+    var nos = B.storeNumbers();
+    if (!nos.length) {
+      return '<p class="bank-empty">The warehouse is empty. Duplicates end up here: the first of any item ' +
+        "goes into the collection, and every copy after that is stock you can sell.</p>";
+    }
+    var rows = nos.map(function (n) {
+      var each = B.sellPrice(n), q = B.stored(n);
+      return '<tr class="bk-row" data-act="bank-pick" data-no="' + n + '">' +
+        '<td class="bk-ck"><input type="checkbox" class="bkck" data-no="' + n + '"></td>' +
+        "<td><b>" + n + ".</b> " + esc(CF.bankItems.name(n)) + "</td>" +
+        '<td class="bk-qty">x' + fmt(q) + "</td>" +
+        '<td class="bk-price">' + (each ? fmt(each) + " CC" + (B.sellCapped(n) ? " *" : "") : "&mdash;") +
+        "</td></tr>";
     }).join("");
-    return '<table class="g-tab bank-items"><tr><th>No.</th><th>Item</th><th>Held</th><th>Worth</th></tr>' +
+    var capped = nos.some(function (n) { return B.sellCapped(n); });
+    return "<p>Anything here sells <b>immediately</b> for cash — no waiting on a buyer.</p>" +
+      '<table class="bank-list bank-store"><tr><th></th><th>Item</th><th>Held</th><th>Each</th></tr>' +
       rows + "</table>" +
-      '<p class="bank-empty">' + fmt(B.itemTotal()) + " items, <b>" + fmt(B.itemsDifferent()) +
-      "</b> of them different. The improvement upstairs wants <b>" + fmt(B.upgradeItems()) + "</b> different.</p>";
+      '<div class="bank-careline"><button class="btn" data-act="bank-sell">Sell selected items</button>' +
+      '<span class="bank-sort">Sell everything numbered ' +
+        '<input type="number" id="bankFrom" min="1" max="' + CF.bankItems.count + '" style="width:60px"> to ' +
+        '<input type="number" id="bankTo" min="1" max="' + CF.bankItems.count + '" style="width:60px"> ' +
+        '<button class="btn" data-act="bank-sell-range">Sell</button></span></div>' +
+      (capped ? '<p class="nb">NOTE! Prices marked * are capped at ' + fmt(R.sellCapCC) +
+        " CC so a single find cannot outpay everything else you do.</p>" : "") +
+      '<p class="bank-empty">Items numbered above ' + R.sellableTo +
+      " are collection pieces and cannot be sold.</p>";
+  }
+  /* "Vaults" — two tabs, exactly as the reference splits them: the treasure
+     itself, and a chamber-by-chamber status board. */
+  function vaultTabsHtml() {
+    var t = ui.vaultTab || "items";
+    return '<div class="vault-tabs">' +
+      '<a data-act="vault-tab" data-tab="items"' + (t === "items" ? ' class="on"' : "") + ">Treasure Chest Items</a> | " +
+      '<a data-act="vault-tab" data-tab="info"' + (t === "info" ? ' class="on"' : "") + ">Treasure Chest Information</a>" +
+      "</div>";
+  }
+  function vaultItemsHtml() {
+    var V = CF.vaults, open = V.openChambers();
+    var out = "";
+    open.forEach(function (ch) {
+      var nos = V.chamberItems(ch);
+      out += '<table class="bank-list vault-tbl">' +
+        '<tr class="bank-cat"><td colspan="5">' + esc(ch.name) + " (items " + ch.from + "&ndash;" + ch.to + ")</td></tr>" +
+        "<tr><th>" + esc(ch.kind) + "</th><th>Quantity</th><th>Value of one</th><th>Total value</th><th></th></tr>";
+      if (!nos.length) {
+        out += '<tr><td colspan="5" class="bank-empty">Nothing in this chamber yet.</td></tr>';
+      } else {
+        nos.forEach(function (n) {
+          var each = CF.vaultItems.value(n), q = V.count(n);
+          out += '<tr class="bk-row" data-act="vault-pick" data-no="' + n + '">' +
+            "<td><b>" + n + ".</b> " + esc(CF.vaultItems.name(n)) + "</td>" +
+            '<td class="bk-qty"><b>' + fmt(q) + "</b></td>" +
+            '<td class="bk-price">' + fmt(each) + " CC</td>" +
+            '<td class="bk-price">' + fmt(each * q) + " CC</td>" +
+            '<td class="bk-ck"><input type="checkbox" class="vck" data-no="' + n + '"></td></tr>';
+        });
+      }
+      out += "</table>";
+    });
+    if (!V.totalHeld()) {
+      out += '<p class="bank-empty">The chambers are empty. Treasure comes out of the ' +
+        '<a data-act="hsp-sewer">chests in the sewer</a>.</p>';
+    } else {
+      out += '<div class="bank-careline"><span>How many of each do you want to sell? ' +
+        '<input type="number" id="vaultQty" min="1" value="1" style="width:70px"></span>' +
+        '<button class="btn" data-act="vault-sell">Sell selected items</button></div>';
+    }
+    return out;
+  }
+  function vaultInfoHtml() {
+    var V = CF.vaults;
+    return CF.vaultChambers.map(function (ch) {
+      var has = V.exists(ch);
+      var rows = '<tr class="bank-cat"><td colspan="2"><b>No.' + ch.no + ":</b> " + esc(ch.name) +
+        " (items " + ch.from + "&ndash;" + ch.to + ")</td></tr>" +
+        "<tr><td>Does this treasure chamber exist:</td><td>" +
+        (has ? '<b class="g-yes">EXISTING</b>' : '<b class="g-no">NO</b>') + "</td></tr>";
+      if (has) {
+        rows += "<tr><td>How many items this chamber holds:</td><td>" + fmt(CF.vaultCapacity) + " items</td></tr>" +
+          "<tr><td>How many different items are here:</td><td>" + fmt(V.chamberDifferent(ch)) + " items</td></tr>" +
+          "<tr><td>How many items in total:</td><td>" + fmt(V.chamberTotal(ch)) + " items</td></tr>" +
+          "<tr><td>The value of this chamber:</td><td>" + fmt(V.chamberValue(ch)) + " CC</td></tr>";
+      } else {
+        rows += "<tr><td>Missing before you get this chamber:</td><td><b>" + fmt(V.missing(ch)) +
+          "</b> different items</td></tr>";
+      }
+      return '<table class="bank-list vault-info">' + rows + "</table>";
+    }).join("");
+  }
+  function bankVaultsHtml() {
+    var V = CF.vaults, n = V.openChambers().length;
+    return '<p class="bank-lvl">Your bank has ' + n + " vault" + (n === 1 ? "" : "s") + "</p>" +
+      vaultTabsHtml() +
+      ((ui.vaultTab || "items") === "info" ? vaultInfoHtml() : vaultItemsHtml());
   }
   function renderBank() {
+    /* You do not own the bank on a fresh account. Until you buy it there is an
+       account to settle with and nothing else — no items, no vaults, no
+       upgrading — so the page is just the offer and the two cash forms. */
+    if (!CF.bank.owned()) {
+      $("locationPanel").innerHTML =
+        '<div class="panel bank"><div class="bar">Bank</div>' +
+        '<div class="bank-top">' +
+          '<div class="bank-left">' +
+            "<p>You have an account here, and nothing more. The bank itself is for sale.</p>" +
+            '<div class="bank-buy"><b>[</b><a data-act="bank-buy">BUY THE BANK</a><b>]</b><br>' +
+            "It costs <b>" + fmt(CF.bank.buyPrice()) + "</b> CC<br>" +
+            "<span class=\"nb\">Owning it opens the items, the vaults and the improvements.</span></div>" +
+          "</div>" +
+          '<div class="bank-art">' + locArt("bank-1.gif", "bank-img", "bank", "Bank") + "</div>" +
+        "</div>" +
+        '<div id="bankNotice" class="notice-slot">' +
+          noticeHtml({ err: ui.bankError, msg: ui.bankNotice, reserve: true }) + "</div>" +
+        '<div class="bank-body">' + bankCashHtml() + "</div></div>";
+      return;
+    }
     var room = ui.bankRoom || "cash";
     var body = room === "cash" ? bankCashHtml()
              : room === "items" ? bankItemsHtml()
-             : '<p class="bank-empty">This part of the bank isn\'t built yet.</p>';
+             : room === "store" ? bankStoreHtml()
+             : room === "vaults" ? bankVaultsHtml()
+             : '<p class="bank-empty">This part of the bank is not built yet.</p>';
     $("locationPanel").innerHTML =
       '<div class="panel bank"><div class="bar">Bank</div>' +
       '<div class="bank-top">' +
@@ -2505,6 +2668,7 @@
       '<div class="bank-body">' + body + "</div>" +
       "</div>";
   }
+
   function fmt0(n) { return Math.max(0, Math.floor(n || 0)); }
 
   /* ===================== CASINO / RACING / BARRACKS ==================== */
@@ -3730,8 +3894,12 @@
           "<p>What you come away with:</p>" +
           '<table class="g-tab"><tr><th>Find</th><th>Chance</th></tr>' + rows + "</table>" +
           "<p>Money is the common case, <b>" + fmt(rs.minCC) + "</b> to <b>" + fmt(rs.maxCC) + "</b> CC a house, " +
-          "but it is not really the point. The <b>stolen items</b> are: they are what the bank's reputation gets " +
-          "built from. Every job pays <b>" + rs.stealPoints + "</b> steal points either way.</p>" +
+          "but it is not really the point. The <b>stolen items</b> are. A villa holds curtains, clocks, house " +
+          "plants, aquarium fish, mirrors, sculptures, paintings and rarer things still, and every one of them is " +
+          'a numbered <a data-act="guide-pick" data-id="bank">bank item</a>. Most houses give you something from ' +
+          "the cheap end; now and then one gives up a masterpiece. A second copy of anything you already own goes " +
+          "to the bank warehouse, which is where items turn back into cash. Every job pays <b>" +
+          rs.stealPoints + "</b> steal points either way.</p>" +
           "<p>Click any road tile to <b>climb down into the sewer</b>, which has its own guide page.</p>" +
           '<p class="g-note">Stolen items and fighting equipment have nowhere to go until the bank and the ' +
           "fighting side exist, so for now they are counted and kept.</p>";
@@ -3760,7 +3928,11 @@
             "<b>Walking spends sewer moves</b>, one a tile, up to <b>" + u.gearMax + "</b>, topped up <b>+" +
             u.sewerGear + " an update</b>. The update also puts fresh company on the map.",
             "<b>Fighting is the point.</b> Kill something and you take weapon handling points, and about one in " +
-            "five leaves a <b>chest</b> behind. Nothing is lying around to be picked up: a chest has to be dropped."]) +
+            "five leaves a <b>chest</b> behind. Nothing is lying around to be picked up: a chest has to be dropped.",
+            "<b>Chests hold treasure</b> — ancient coins, silver and gold bars, gemstones — and it goes straight " +
+            'into your <a data-act="guide-pick" data-id="bank">bank vaults</a>. How deep you are decides how far ' +
+            "up that catalogue you can reach, so the deeper chambers only fill from the deeper floors. Chests " +
+            "also turn up cold weapons and plain cash."]) +
           '<p class="g-note">Endurance is all or nothing down here. <b>Winning a fight costs you nothing.</b> ' +
           "<b>Losing one empties it</b>, and only a hospital will put it back. So the skill is reading what you " +
           "are looking at and walking away from the ones you cannot take, not counting how many you can afford.</p>" +
@@ -3780,9 +3952,17 @@
           gSteps([
             "<b>Deposit and withdraw</b> freely between the two. A new account starts with most of its money in " +
             "the bank, so the first thing you will ever need to do here is take some out.",
-            "<b>The vault is separate from your balance.</b> Treasure chests in the sewer are delivered straight " +
-            "into it, and they never pass through your backpack."]) +
-          '<p class="g-note">Buying the bank, and what the vault items are actually worth, are still to come.</p>';
+            "<b>You have to buy the bank</b> before any of the rest of it opens.",
+            "<b>Bank items</b> are the collection: 200 numbered pieces, from curtains up to priceless " +
+            'manuscripts. They come from robbing <a data-act="guide-pick" data-id="houses">villas</a>, and the ' +
+            "bank cannot be improved without a growing number of different ones. They wear out and need " +
+            "maintaining, a few an hour.",
+            "<b>Vault treasure is a different catalogue</b>: 80 coins, bars and gemstones in five chambers, and " +
+            'it comes out of the chests in the <a data-act="guide-pick" data-id="sewer">sewer</a>. A chamber only ' +
+            "opens once you own every treasure numbered before it.",
+            "<b>The warehouse</b> holds your duplicates, and is the only place items turn back into cash."]) +
+          '<p class="g-note">Buying and trading items with other people is not here — that is going to the Slum ' +
+          "with the rest of the market.</p>";
       } },
       { id: "hospital", name: "Hospital", body: function () {
         return gTitle("Hospital") +
@@ -4095,11 +4275,30 @@
           '<button class="btn warn" data-act="dbg-hurt">Empty endurance (to 0)</button>' +
           '<button class="btn" data-act="dbg-give-kits">+10 first aid kits</button>' +
         "</div></div>" +
-        '<div class="field"><label>Sewer finds</label><div class="dbg-togs">' +
-          '<button class="btn" data-act="dbg-give-vault">+1 bank vault item</button>' +
+        '<div class="field"><label>Cold weapons</label><div class="dbg-togs">' +
           '<button class="btn" data-act="dbg-give-weapon">+1 cold weapon</button>' +
-          '<span class="dbg-note">vault ' + fmt(Object.keys(CF.houses.vault()).reduce(function (s, k) { return s + CF.houses.vault()[k]; }, 0)) +
-          ", weapons " + fmt(Object.keys(CF.houses.arms()).reduce(function (s, k) { return s + CF.houses.arms()[k]; }, 0)) + "</span>" +
+          '<span class="dbg-note">' +
+            fmt(Object.keys(CF.houses.arms()).reduce(function (t, k) { return t + CF.houses.arms()[k]; }, 0)) +
+          " in the rack</span>" +
+        "</div></div>" +
+        '<div class="field"><label>Bank</label><div class="dbg-togs">' +
+          '<button class="btn' + (CF.bank.owned() ? " go" : "") + '" data-act="dbg-own-bank">' +
+            (CF.bank.owned() ? "Bank owned ✓" : "Buy the bank") + "</button>" +
+          dbgNum("Bank level", "dbgBankLevel", CF.bank.level(), "dbg-set-banklevel",
+                 ' min="1" max="' + CF.ruleset.bank.maxLevel + '"') +
+        "</div></div>" +
+        '<div class="field"><label>Bank items and vault treasure</label><div class="dbg-togs">' +
+          '<button class="btn" data-act="dbg-give-vault">+5 bank items</button>' +
+          '<button class="btn" data-act="dbg-give-treasure">+5 vault treasure</button>' +
+          '<button class="btn warn" data-act="dbg-fill-collection">Give the whole collection</button>' +
+          '<button class="btn warn" data-act="dbg-fill-chambers">Fill every chamber</button>' +
+          '<span class="dbg-note">' + fmt(CF.bank.itemTotal()) + " items, " + fmt(CF.bank.storeTotal()) +
+            " spare, " + fmt(CF.vaults.differentHeld()) + " treasures</span>" +
+        "</div></div>" +
+        '<div class="field"><label>Item upkeep</label><div class="dbg-togs">' +
+          '<button class="btn" data-act="dbg-wear-items">Wear every item down 20</button>' +
+          '<button class="btn go" data-act="dbg-reset-maint">Reset the hourly allowance</button>' +
+          '<span class="dbg-note">' + CF.bank.maintainLeft() + " left this hour</span>" +
         "</div></div>" +
         '<div class="field"><label>Warehouse capacity enforcement</label><div class="dbg-togs">' +
           dbgToggle(CF.ruleset.enforceCapacity ? "ON — warehouses can fill up" : "OFF — no limits",
@@ -4599,10 +4798,45 @@
       case "dbg-give-kits": CF.state.medicine.kits = (CF.state.medicine.kits || 0) + 10;
         dbgApplied("First aid kits"); break;
       case "dbg-give-vault": {
-        var vn = CF.bankItemNames[Math.floor(Math.random() * CF.bankItemNames.length)];
-        CF.houses.vault()[vn] = (CF.houses.vault()[vn] || 0) + 1;
-        dbgApplied("Vault (" + vn + ")"); break;
+        /* five random BANK items (the 200 catalogue the villas feed); a repeat
+           stacks in the warehouse, exactly as a real steal would */
+        for (var gi = 0; gi < 5; gi++) {
+          var bn = 1 + Math.floor(Math.random() * CF.bankItems.count);
+          if (!CF.bank.addItem(bn)) CF.bank.addToStore(bn, 1);
+        }
+        dbgApplied("Bank items"); break;
       }
+      case "dbg-give-treasure": {
+        // five random VAULT treasures (the 80 catalogue the sewer feeds)
+        for (var ti = 0; ti < 5; ti++) CF.vaults.add(1 + Math.floor(Math.random() * CF.vaultItems.count), 1);
+        dbgApplied("Vault treasure"); break;
+      }
+      case "dbg-fill-collection": {
+        // every bank item, so the upgrade requirement can actually be met
+        for (var ci = 1; ci <= CF.bankItems.count; ci++) CF.bank.addItem(ci);
+        dbgApplied("Whole collection"); break;
+      }
+      case "dbg-fill-chambers": {
+        for (var vi = 1; vi <= CF.vaultItems.count; vi++) CF.vaults.add(vi, 1);
+        dbgApplied("Every chamber"); break;
+      }
+      case "dbg-own-bank": {
+        CF.state.player.bankOwned = !CF.state.player.bankOwned;
+        if (CF.state.player.bankOwned) CF.state.player.bankLevel = CF.state.player.bankLevel || 1;
+        dbgApplied(CF.state.player.bankOwned ? "Bank bought" : "Bank sold back"); break;
+      }
+      case "dbg-set-banklevel":
+        CF.state.player.bankLevel = Math.max(1, Math.min(CF.ruleset.bank.maxLevel, num("dbgBankLevel", 1)));
+        dbgApplied("Bank level"); break;
+      case "dbg-wear-items": {
+        // knock every piece down so the maintenance list has work in it
+        var vv = CF.bank.items();
+        for (var wk in vv) vv[wk] = Math.max(0, vv[wk] - 20);
+        dbgApplied("Items worn"); break;
+      }
+      case "dbg-reset-maint":
+        CF.state.bankMaintSlot = -1; CF.state.bankMaintCount = 0;
+        dbgApplied("Maintenance allowance"); break;
       case "dbg-give-weapon": {
         var cw = CF.coldWeapons[Math.floor(Math.random() * CF.coldWeapons.length)];
         CF.houses.arms()[cw.name] = (CF.houses.arms()[cw.name] || 0) + 1;
@@ -4636,7 +4870,12 @@
       case "go-bank": ui.place = "bank"; ui.bankRoom = ui.bankRoom || "cash"; ui.bankNotice = null; ui.bankError = null; renderPlace(); break;
       case "go-casino": ui.place = "casino"; renderPlace(); break;
       case "go-racing": ui.place = "racing"; renderPlace(); break;
-      case "bank-buy": toast("Feature not built yet.", "err"); break;
+      case "bank-buy": {
+        ui.bankNotice = null; ui.bankError = null;
+        var bb = CF.bank.buy();
+        if (bb.ok) { ui.bankNotice = bb.msg; CF.autosave(); } else ui.bankError = bb.msg;
+        renderSidebar(); renderPlace(); break;
+      }
       case "bank-room": {
         var br = el.getAttribute("data-room");
         var meta = CF.bankRooms.left.concat(CF.bankRooms.right).filter(function (r) { return r.id === br; })[0];
@@ -4647,6 +4886,68 @@
         ui.bankNotice = null; ui.bankError = null;
         var br2 = a === "bank-put" ? CF.bank.deposit(num("bankPut", 0)) : CF.bank.withdraw(num("bankTake", 0));
         if (br2.ok) { ui.bankNotice = br2.msg; CF.autosave(); } else ui.bankError = br2.msg;
+        renderSidebar(); renderPlace(); break;
+      }
+      case "bank-pick": {
+        // clicking anywhere on the row toggles it; clicking the box itself is
+        // already handled by the browser, so don't undo it
+        var pn = el.getAttribute("data-no");
+        var box = el.querySelector(".bkck");
+        if (box && e && e.target !== box) box.checked = !box.checked;
+        if (box) el.classList.toggle("sel", box.checked);
+        break;
+      }
+      case "bank-maintain": {
+        ui.bankNotice = null; ui.bankError = null;
+        var picked = Array.prototype.filter.call(document.querySelectorAll(".bkck"), function (c) { return c.checked; })
+          .map(function (c) { return +c.getAttribute("data-no"); });
+        var mr = CF.bank.maintain(picked);
+        if (mr.ok) {
+          ui.bankNotice = mr.msg + (mr.skipped ? " " + mr.skipped + " had to wait — the hour's allowance ran out." : "");
+          CF.autosave();
+        } else ui.bankError = mr.msg;
+        renderPlace(); break;
+      }
+      case "vault-tab": ui.vaultTab = el.getAttribute("data-tab"); renderPlace(); break;
+      case "vault-pick": {
+        var vb = el.querySelector(".vck");
+        if (vb && e && e.target !== vb) vb.checked = !vb.checked;
+        if (vb) el.classList.toggle("sel", vb.checked);
+        break;
+      }
+      case "vault-sell": {
+        ui.bankNotice = null; ui.bankError = null;
+        var q = Math.max(1, num("vaultQty", 1));
+        var vp = Array.prototype.filter.call(document.querySelectorAll(".vck"), function (c) { return c.checked; })
+          .map(function (c) { return +c.getAttribute("data-no"); });
+        if (!vp.length) { ui.bankError = "Choose some treasure to sell."; renderPlace(); break; }
+        var vt = 0, vn = 0, verr = null;
+        vp.forEach(function (n) {
+          var r = CF.vaults.sell(n, Math.min(q, CF.vaults.count(n)));
+          if (r.ok) { vt += r.got; vn++; } else if (!verr) verr = r.msg;
+        });
+        if (vn) { ui.bankNotice = "You sold treasure for " + fmt(vt) + " CC."; CF.autosave(); }
+        else ui.bankError = verr || "Nothing sold.";
+        renderSidebar(); renderPlace(); break;
+      }
+      case "bank-sell": {
+        ui.bankNotice = null; ui.bankError = null;
+        var picks = Array.prototype.filter.call(document.querySelectorAll(".bkck"), function (c) { return c.checked; })
+          .map(function (c) { return +c.getAttribute("data-no"); });
+        if (!picks.length) { ui.bankError = "Choose something to sell."; renderPlace(); break; }
+        var total = 0, sold = 0, err = null;
+        picks.forEach(function (n) {
+          var r = CF.bank.sell(n, CF.bank.stored(n));
+          if (r.ok) { total += r.got; sold++; } else if (!err) err = r.msg;
+        });
+        if (sold) { ui.bankNotice = "You sold " + sold + " lot" + (sold === 1 ? "" : "s") +
+          " for " + fmt(total) + " CC."; CF.autosave(); } else ui.bankError = err || "Nothing sold.";
+        renderSidebar(); renderPlace(); break;
+      }
+      case "bank-sell-range": {
+        ui.bankNotice = null; ui.bankError = null;
+        var rr = CF.bank.sellRange(num("bankFrom", 0), num("bankTo", 0));
+        if (rr.ok) { ui.bankNotice = rr.msg; CF.autosave(); } else ui.bankError = rr.msg;
         renderSidebar(); renderPlace(); break;
       }
       case "bank-upgrade": {
@@ -4747,6 +5048,7 @@
           var sr = CF.houses.stealFrom(dx, dy);
           if (sr.ok) {
             ui.hsNotice = sr.msg;
+            if (sr.sub) ui.hsSub = sr.sub;
             if (sr.levelUp) ui.hsLevelUp = sr.levelUp;
             CF.autosave();
           } else ui.hsError = sr.msg;
@@ -5345,6 +5647,7 @@
     else if (role === "edseed") { ui.edSeedSel = el.value; }
     else if (role === "edcount") { ui.edCount = el.value; }
     else if (role === "streetgrams") { ui.streetGrams = el.value; }
+    else if (role === "banksort") { ui.bankSort = el.value; renderPlace(); }
     else if (role === "streetcountry") {
       var nc = el.value;
       if (nc !== ui.streetCountry) {

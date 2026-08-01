@@ -20,13 +20,17 @@
  * ========================================================================== */
 window.CF = window.CF || {};
 
-/* The room links, in the reference's own two-column arrangement. */
+/* The room links. Grouped by what they are for: what you can do NOW on the
+ * left, the two storage rooms on the right.
+ *
+ * The reference's fifth room, "Panga äriruum" (bank business room), was for
+ * trading items with other players. It is LEFT OUT — item trading and buying is
+ * going to the Slum instead, with the rest of the market. */
 CF.bankRooms = {
   left:  [{ id: "cash",  name: "Settle with cash", live: true },
-          { id: "items", name: "Bank items",       live: true },
-          { id: "store", name: "Bank warehouse",   live: false }],
-  right: [{ id: "vaults", name: "Vaults",            live: false },
-          { id: "trade",  name: "Bank business room", live: false }],
+          { id: "items", name: "Bank items",       live: true }],
+  right: [{ id: "vaults", name: "Vaults",          live: true },
+          { id: "store",  name: "Bank warehouse",  live: true }],
 };
 
 CF.bank = (function () {
@@ -36,32 +40,138 @@ CF.bank = (function () {
   var fail = function (m) { return { ok: false, msg: m }; };
 
   function level() { return Math.max(1, Math.min(R().maxLevel, P().bankLevel || 1)); }
+  /* You do not own the bank to begin with. Until you buy it there is an account
+   * to settle with and nothing else — no items, no vaults, no upgrading. */
+  function owned() { return !!P().bankOwned; }
+  function buyPrice() { return R().buyPriceCC; }
+  function buy() {
+    if (owned()) return fail("You already own the bank.");
+    if (P().money < buyPrice())
+      return fail("Buying the bank costs " + fmtN(buyPrice()) + " CC and you have " + fmtN(P().money) + ".");
+    P().money -= buyPrice();
+    P().bankOwned = true;
+    P().bankLevel = P().bankLevel || 1;
+    return ok("You bought the bank.");
+  }
 
   /* ---- The items you hold ------------------------------------------------
-   * `state.vault` is name -> count, filled by sewer chests. "Different items"
-   * means distinct NAMES, which is what the upgrade asks for. */
+   * Items are UNIQUE and globally numbered, so ownership is
+   *   state.vault = { "<item number>": <condition out of 80> }
+   * Condition decays and is restored by maintaining, a few an hour. */
   function items() { return CF.state.vault || (CF.state.vault = {}); }
-  function itemTotal() {
-    var v = items(), n = 0;
-    for (var k in v) n += v[k] || 0;
-    return n;
+  function owns(no) { return items()[no] != null; }
+  function ownedNumbers() {
+    var v = items(), out = [];
+    for (var k in v) out.push(+k);
+    return out.sort(function (a, b) { return a - b; });
   }
-  function itemsDifferent() {
-    var v = items(), n = 0;
-    for (var k in v) if (v[k] > 0) n++;
-    return n;
-  }
-  /* What the collection is worth. No reading exists for a single item, so this
-   * is OURS: a flat value a piece, scaled by how far down the list it sits
-   * (the list is ordered by worth). */
-  function itemValue(name) {
-    var i = CF.bankItemNames.indexOf(name);
-    return i < 0 ? 0 : Math.round(1000000 * Math.pow(1.35, i));
-  }
+  function itemTotal() { return ownedNumbers().length; }
+  /* Every item is its own kind, so "different items" is simply how many you
+   * hold — which is what the upgrade counts. */
+  function itemsDifferent() { return itemTotal(); }
+  function itemValue(no) { var v = CF.bankItems.value(no); return v == null ? 0 : v; }
+  function priceless(no) { return CF.bankItems.value(no) == null; }
   function vaultValue() {
-    var v = items(), t = 0;
-    for (var k in v) t += itemValue(k) * (v[k] || 0);
-    return t;
+    return ownedNumbers().reduce(function (t, n) { return t + itemValue(n); }, 0);
+  }
+
+  /* ---- The warehouse ------------------------------------------------------
+   * Duplicates live here as stacks (itemNo -> count). The collection upstairs
+   * holds one of each; anything you already own arrives here instead, and this
+   * is the only place items turn back into money. */
+  function store() { return CF.state.bankStore || (CF.state.bankStore = {}); }
+  function stored(no) { return store()[no] || 0; }
+  function storeNumbers() {
+    var st = store(), out = [];
+    for (var k in st) if (st[k] > 0) out.push(+k);
+    return out.sort(function (a, b) { return a - b; });
+  }
+  function storeTotal() { return storeNumbers().reduce(function (t, n) { return t + stored(n); }, 0); }
+  function addToStore(no, n) { store()[no] = stored(no) + (n || 1); }
+  function sellable(no) { return no <= R().sellableTo; }
+  /* What one of them pays. The reference's own immediate rate is value/6; the
+   * cap is ours, and is what stops one late item from funding the whole game. */
+  function sellPrice(no) {
+    var v = CF.bankItems.value(no);
+    if (v == null || !sellable(no)) return 0;
+    // ROUNDED, not floored: 25,000,000/6 lists as 4,166,667 in the reference
+    return Math.min(R().sellCapCC, Math.round(v / R().sellDivisor));
+  }
+  function sellCapped(no) {
+    var v = CF.bankItems.value(no);
+    return v != null && sellable(no) && Math.round(v / R().sellDivisor) > R().sellCapCC;
+  }
+  function sell(no, n) {
+    n = Math.floor(n || 0);
+    if (!(n > 0)) return fail("Enter how many to sell.");
+    if (stored(no) < n) return fail("You only have " + stored(no) + " of item No. " + no + ".");
+    if (!sellable(no)) return fail("Item No. " + no + " cannot be sold — it is a collection piece.");
+    var each = sellPrice(no), got = each * n;
+    store()[no] -= n;
+    if (store()[no] <= 0) delete store()[no];
+    P().money += got;
+    return ok("You sold " + n + " x " + CF.bankItems.name(no) + " for " + fmtN(got) + " CC.", { got: got });
+  }
+  function sellRange(from, to) {
+    from = Math.max(1, Math.floor(from || 0)); to = Math.min(CF.bankItems.count, Math.floor(to || 0));
+    if (!(to >= from)) return fail("Enter a range, lowest number first.");
+    var nos = storeNumbers().filter(function (n) { return n >= from && n <= to && sellable(n); });
+    if (!nos.length) return fail("You have nothing in that range to sell.");
+    var got = 0, count = 0;
+    nos.forEach(function (n) { var q = stored(n); got += sellPrice(n) * q; count += q; store()[n] = 0; delete store()[n]; });
+    P().money += got;
+    return ok("You sold " + count + " item" + (count === 1 ? "" : "s") + " for " + fmtN(got) + " CC.", { got: got });
+  }
+
+  /* ---- Condition and maintenance ---------------------------------------- */
+  function condMax() { return R().conditionMax; }
+  function condition(no) {
+    var c = items()[no];
+    return c == null ? 0 : Math.max(0, Math.min(condMax(), c));
+  }
+  function addItem(no) {
+    if (owns(no)) return false;
+    items()[no] = condMax();          // arrives in perfect condition
+    return true;
+  }
+  /* Wear, settled on arrival rather than ticked — the garden's pattern exactly.
+   * Whole CLOCK HOURS only, so a partial hour never rounds away. */
+  function settleCondition() {
+    var st = CF.state, now = Date.now();
+    if (!st.bankCondSlot) { st.bankCondSlot = hourSlot(); return 0; }
+    var hours = hourSlot() - st.bankCondSlot;
+    if (hours <= 0) return 0;
+    st.bankCondSlot = hourSlot();
+    var loss = hours * R().conditionDecayPerHour, v = items(), n = 0;
+    for (var k in v) {
+      var before = v[k];
+      v[k] = Math.max(0, before - loss);
+      if (v[k] !== before) n++;
+    }
+    return n;
+  }
+  /* The allowance is per CLOCK HOUR, the same slot the garden's watering uses,
+   * so it resets on the update rather than on a rolling timer. */
+  function hourSlot() { return Math.floor(Date.now() / 3600000); }
+  function maintainedThisHour() {
+    var st = CF.state;
+    if (st.bankMaintSlot !== hourSlot()) { st.bankMaintSlot = hourSlot(); st.bankMaintCount = 0; }
+    return st.bankMaintCount || 0;
+  }
+  function maintainLeft() { return Math.max(0, R().maintainPerHour - maintainedThisHour()); }
+  function needsCare(no) { return owns(no) && condition(no) < condMax(); }
+  function maintain(nos) {
+    settleCondition();
+    nos = (nos || []).filter(needsCare);
+    if (!nos.length) return fail("Choose something that needs maintaining.");
+    var left = maintainLeft();
+    if (!left) return fail("You have already maintained " + R().maintainPerHour +
+                           " items this hour. Wait for the update.");
+    var done = nos.slice(0, left);
+    done.forEach(function (n) { items()[n] = condMax(); });
+    CF.state.bankMaintCount = maintainedThisHour() + done.length;
+    return ok("You maintained " + done.length + " item" + (done.length === 1 ? "" : "s") + ".",
+              { done: done.length, skipped: nos.length - done.length });
   }
 
   /* ---- Reputation --------------------------------------------------------
@@ -126,6 +236,13 @@ CF.bank = (function () {
   return {
     level: level, items: items, itemTotal: itemTotal, itemsDifferent: itemsDifferent,
     itemValue: itemValue, vaultValue: vaultValue, reputation: reputation, clientsHold: clientsHold,
+    owns: owns, ownedNumbers: ownedNumbers, priceless: priceless,
+    owned: owned, buyPrice: buyPrice, buy: buy,
+    store: store, stored: stored, storeNumbers: storeNumbers, storeTotal: storeTotal,
+    addToStore: addToStore, sellPrice: sellPrice, sellCapped: sellCapped, sellable: sellable,
+    sell: sell, sellRange: sellRange,
+    condition: condition, condMax: condMax, addItem: addItem, needsCare: needsCare,
+    settleCondition: settleCondition, maintainLeft: maintainLeft, maintain: maintain,
     upgradeCost: upgradeCost, upgradeItems: upgradeItems, upgradeBlockers: upgradeBlockers,
     upgrade: upgrade, deposit: deposit, withdraw: withdraw,
   };

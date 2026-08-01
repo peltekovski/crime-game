@@ -104,6 +104,34 @@ CF.loadLateGame = function () {
   s.canteen.dairy = { "Raw milk": 100, "Water": 100, "Butter": 100, "Milk": 40 };
   s.canteen.fish = { "Baltic herring": 60 };   // its dish is level 2, like Cooking
   s.harbor.owned = true;                       // the boat is already bought
+  /* THE BANK, so its four rooms are all testable at once. Modelled on the
+   * reference's own level-2 account: the bank bought, a partial collection with
+   * some pieces worn down to be maintained, duplicates sitting in the warehouse
+   * to sell, and the vault holding exactly the nine treasures that page showed
+   * (which is what makes its 337,310,000 CC figure appear). Weapon handling is
+   * raised too, or none of the sewer that feeds this is reachable. */
+  p.bankOwned = true; p.bankLevel = 2;
+  s.vault = {}; s.bankStore = {}; s.chambers = {};
+  // 34 different bank items — six short of the 40 the level-2 upgrade wants, so
+  // the requirement is visible and testable rather than already satisfied
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20,
+   21, 22, 23, 26, 28, 30, 32, 39, 40, 54, 60, 61, 84, 147, 163].forEach(function (n) {
+    s.vault[n] = CF.ruleset.bank.conditionMax;
+  });
+  // a few left worn, so the maintenance list has something in it on arrival
+  [3, 5, 16, 17, 22, 61].forEach(function (n) { s.vault[n] = 62 + (n % 5) * 3; });
+  // duplicates to sell in the warehouse
+  [[1, 4], [3, 2], [5, 3], [12, 1], [22, 2], [39, 1], [61, 1]].forEach(function (d) {
+    s.bankStore[d[0]] = d[1];
+  });
+  // the reference's own vault: 9 different, 12 items, 337,310,000 CC
+  [[3, 1], [4, 1], [5, 1], [6, 1], [8, 1], [11, 2], [12, 1], [14, 1], [15, 3]].forEach(function (c) {
+    s.chambers[c[0]] = c[1];
+  });
+  s.sports.weaponPoints = f.xpToReachLevelFor("Weapon handling", 22);
+  s.sewerGear = CF.ruleset.perUpdate.gearMax;
+  s.houseGear = CF.ruleset.perUpdate.gearMax;
+  s.medicine.kits = 12;                        // enough to test hospital healing
   // stock the warehouses so the tavern loop is immediately usable
   CF.materials.forEach(function (m) { s.inv.materials[m] = 5000; });
   CF.rawJuices.forEach(function (j) { s.inv.rawJuice[j] = 2000; });
@@ -356,6 +384,20 @@ CF.reconcileState = function () {
   if (!CF.state.vault) CF.state.vault = {};
   if (!CF.state.arms) CF.state.arms = {};
   if (!CF.state.player.bankLevel) CF.state.player.bankLevel = 1;
+  /* The vault used to be name -> count; it is now item NUMBER -> condition.
+     Convert what can be matched by name and drop the rest — the old names were
+     a 12-entry guess, the numbered catalogue replaces them. */
+  (function () {
+    var v = CF.state.vault || {}, out = {}, changed = false;
+    for (var k in v) {
+      if (/^\d+$/.test(k)) { out[k] = v[k]; continue; }
+      changed = true;
+      for (var n = 1; n <= CF.bankItems.count; n++) {
+        if (CF.bankItems.name(n) === k) { out[n] = CF.ruleset.bank.conditionMax; break; }
+      }
+    }
+    if (changed) CF.state.vault = out;
+  })();
   /* The endurance bar's size is the Endurance level now. Older saves carry a
      durabilityMax frozen at account creation and a durabilityCur that may sit
      ABOVE it — which made sewer fights unloseable. Re-clamp on load. */

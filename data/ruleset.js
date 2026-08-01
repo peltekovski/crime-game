@@ -75,6 +75,34 @@ CF.ruleset = {
     upgradeAnchorLevel: 2, upgradeAnchorCC: 1350000000, upgradeRatio: 3,
     upgradeAnchorItems: 40, upgradeItemsPerLevel: 20,
     vaultMaxLevel: 5,             // img/vault-1..5.gif
+    /* Items carry a CONDITION out of 80 and you keep it up by maintaining
+     * them. The page says "NB! VIP liige saab tunnis hooldada 6 eset, teised
+     * 5!" — a VIP maintains 6 an hour, everyone else 5. We have no VIP, so 5.
+     * The allowance is per CLOCK HOUR, like the garden's watering.
+     * DECAY: the same shape as the garden's watering — 1 a CLOCK HOUR, settled
+     * on arrival rather than ticked (user: "the cleaning system for the bank
+     * items is same as watering plants at the botanical garden"). An item
+     * therefore needs attention every 80 hours, and a 5-an-hour allowance keeps
+     * a 200-item collection up with room to spare. */
+    conditionMax: 80, maintainPerHour: 5, conditionDecayPerHour: 1,
+    /* -- The warehouse (Panga ladu). The reference offers three ways out:
+     *      market for play money  = value / 2   (higher, but may never sell)
+     *      market for credits     = items 100-200 only
+     *      sell immediately       = "3x less", i.e. value / 6
+     *    Both divisors are EXACT — item 3 lists 12,500,000 and 4,166,667
+     *    against a catalogue value of 25,000,000, and item 61 lists
+     *    10,189,271,500 and 3,396,423,833 against 20,378,543,000.
+     *
+     *    We keep ONLY the immediate sale: no market (there are no other players
+     *    to buy from you) and no credits (that economy is skipped), so the three
+     *    panels collapse to one and everything pays CC.
+     *
+     *    sellCapCC is OURS and is the knob that keeps this from breaking the
+     *    economy: at value/6 a single late item pays billions, which would
+     *    trivialise every other earner in the game. Raise it as the rest of the
+     *    economy grows. sellableTo mirrors the reference's own "items 1-170"
+     *    for play money; 171-200 were credit-only, so they stay collection-only. */
+    sellDivisor: 6, sellCapCC: 100000000, sellableTo: 170,
   },
 
   /* -- Locations gated behind a HOUSE level (observed on a fresh account):
@@ -148,7 +176,14 @@ CF.ruleset = {
            /* What is in a chest: a numbered bank-vault item, a cold weapon, or
             * (the remainder) cash. The vault items are the ones that matter —
             * they are what the bank is built on. */
-           vaultChance: 0.25, weaponChance: 0.3,
+           /* WHAT A CHEST HOLDS. Treasure means the VAULT catalogue — ancient
+            * coins, bullion, gemstones — never the bank's furniture. The
+            * reference's own message settles it: "You found TREASURE CHEST item
+            * No. 11 on the ground! This was delivered to you in the BANK
+            * VAULT", and the vaults page is titled "Treasure Chest Items" with
+            * chambers described as treasure chests. Curtains and wall clocks do
+            * not turn up in a sewer; coins and gold bars do. */
+           chamberChance: 0.45, weaponChance: 0.3,
            /* Monster health and damage, both multiplied by tierRatio^tier.
             * Skills go to 1000, so the curve has to be geometric to stay
             * meaningful the whole way down. See attackMonster in houses.js. */

@@ -554,16 +554,20 @@ CF.houses = (function () {
     var sr = CF.ruleset.sewer, cell = sewerCell(x, y);
     delete cell.tt;
     var roll = Math.random(), r;
-    if (roll < sr.vaultChance) {
-      // deeper floors reach further down a list that is ordered by worth
-      var span = Math.min(CF.bankItemNames.length, Math.ceil(CF.bankItemNames.length * level() / CF.sewer.maxLevel));
-      var idx = Math.floor(Math.random() * span);
-      vault()[CF.bankItemNames[idx]] = (vault()[CF.bankItemNames[idx]] || 0) + 1;
-      r = ok("You found treasure chest item No. " + (idx + 1) + " on the ground!", { vault: idx + 1 });
+    if (roll < sr.chamberChance) {
+      /* TREASURE: a coin, a bar or a gemstone for the bank's vaults. How deep
+         you are sets how far up the 80-item chamber catalogue you can reach,
+         which lines up with the chambers' own unlock rule almost exactly —
+         chamber 2 wants all twenty silver coins and floor 2 is the first that
+         reaches them. */
+      var vspan = Math.max(1, Math.ceil(CF.vaultItems.count * level() / CF.sewer.maxLevel));
+      var vno = 1 + Math.floor(Math.random() * vspan);
+      CF.vaults.add(vno, 1);
+      r = ok("You found treasure chest item No. " + vno + " on the ground!", { treasure: vno });
       r.sub = "This was delivered to you in the bank vault.";
       return r;
     }
-    if (roll < sr.vaultChance + sr.weaponChance) {
+    if (roll < sr.chamberChance + sr.weaponChance) {
       /* Which weapons turn up follows the floor: level 1 finds pocket knives,
        * the bottom finds the whole list. */
       var pool = CF.coldWeapons.filter(function (w) { return w.lvl <= level() * 7; });
@@ -657,7 +661,7 @@ CF.houses = (function () {
     if (robbed(x, y)) return fail("You have already been through that one.");
     if (!standingOn(x, y)) return fail("Walk over to the house first.");
 
-    var rs = CF.ruleset.houseSteal, loot = rollLoot(), msg, got = { kind: loot.key };
+    var rs = CF.ruleset.houseSteal, loot = rollLoot(), msg, sub = null, got = { kind: loot.key };
     if (loot.key === "money") {
       var amt = rs.minCC + Math.floor(Math.random() * (rs.maxCC - rs.minCC + 1));
       P().money += amt; got.amount = amt;
@@ -666,8 +670,23 @@ CF.houses = (function () {
       CF.state.garden.tickets = (CF.state.garden.tickets || 0) + 1;
       msg = "You stole a greenhouse ticket from the house.";
     } else if (loot.key === "bankItem") {
-      H().items = (H().items || 0) + 1;
-      msg = "You stole a bank item from the house.";
+      /* A stolen item is a BANK item — and look at what that catalogue is:
+         curtains, clocks, house plants, aquarium fish, mirrors, sculptures,
+         paintings, Fabergé eggs, manuscripts. That is the contents of a villa,
+         which is exactly what you are robbing. (Coins and bullion are the
+         VAULT catalogue, and those come out of the sewer's chests.)
+
+         Villas reach the WHOLE catalogue, weighted hard towards the cheap end:
+         most houses have curtains, a rare one has a Chagall. They have to reach
+         all of it, because the bank's own upgrade wants 40 different items and
+         a shallow slice could never supply that. */
+      var pick = 1 + Math.floor(Math.pow(Math.random(), 3) * CF.bankItems.count);
+      pick = Math.min(CF.bankItems.count, pick);
+      var dupV = !CF.bank.addItem(pick);
+      if (dupV) CF.bank.addToStore(pick, 1);
+      msg = "You stole item No. " + pick + " from the house!";
+      sub = dupV ? "You already have one — this copy went to the bank warehouse."
+                 : "This was added to your bank items.";
     } else {
       H().equipment = (H().equipment || 0) + 1;
       msg = "You stole a piece of fighting equipment from the house.";
@@ -680,6 +699,7 @@ CF.houses = (function () {
     var after = CF.garden.stealProgress().level;
 
     var r = ok(msg, { loot: loot.key, pts: rs.stealPoints });
+    if (sub) r.sub = sub;
     if (after > before) r.levelUp = after;
     if (got.amount) r.amount = got.amount;
     return r;
