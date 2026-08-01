@@ -51,7 +51,7 @@
     sportsFac: "trail", sportNotice: null, sportError: null,      // Sports complex
     runHours: 1, runSteroids: false,
     calcOpen: false,            // the Calculator is a floating popup, not a page
-    debugOpen: false, dbgSkill: "Bartending", dbgTab: "skills",
+    debugOpen: false, dbgSkill: "Barkeeping", dbgTab: "skills",
     q: { tel: 1000, j1: 500 },
     telMat: "", j1Mat: "", mix: {}, calc: {},
     lastUpdate: null, lastMix: {}, mixLevelUp: null,
@@ -64,54 +64,58 @@
   var skillPopEl = null;
   function hideSkillPop() { if (skillPopEl) skillPopEl.style.display = "none"; }
 
+  /* The tavern's nine pages, in the user's order and under the user's names. */
   var TOOLS = [
-    { id: "telephone",   label: "Telephone",              desc: "order additional raw materials" },
-    { id: "juicer1",     label: "Juicer",                 desc: "make raw juice" },
-    { id: "readytosell", label: "Ready-to-sell beverages", desc: "make sure there is always something to drink for customers here" },
-    { id: "kitchen",     label: "Kitchen",                desc: "make tea, coffee, milk, etc.",           station: "Kitchen" },
-    { id: "winecellar",  label: "Wine cellar",            desc: "makes beverages that require aging",     station: "Wine cellar" },
-    { id: "carbonation", label: "Carbonation machine",    desc: "make carbonated drinks",                 station: "Carbonation machine" },
-    { id: "distilling",  label: "Pusher machine",         desc: "prepare spirits and spirits-based drinks", station: "Distiller" },
-    { id: "cider",       label: "Cider room",             desc: "make various ciders",                    station: "Cider room" },
-    { id: "juicer2",     label: "Juicer",                 desc: "make ready-to-sell juices and nectars",  station: "Juicer #2" },
+    { id: "telephone",   label: "Phone",     desc: "order additional raw materials" },
+    { id: "juicer1",     label: "Juicer",    desc: "make raw juice" },
+    { id: "readytosell", label: "Drinks",    desc: "make sure there is always something for customers to drink" },
+    { id: "kitchen",     label: "Kitchen",   desc: "make tea, coffee, milk, etc.",             station: "Kitchen" },
+    { id: "winecellar",  label: "Cellar",    desc: "makes beverages that require aging",       station: "Cellar" },
+    { id: "carbonation", label: "Aerator",   desc: "make carbonated drinks",                   station: "Aerator" },
+    { id: "distilling",  label: "Distiller", desc: "prepare spirits and spirits-based drinks", station: "Distiller" },
+    { id: "cider",       label: "Cider",     desc: "make various ciders",                      station: "Cider" },
+    { id: "juicer2",     label: "Blender",   desc: "make ready-to-sell juices and nectars",    station: "Blender" },
   ];
   function tool(id) { for (var i = 0; i < TOOLS.length; i++) if (TOOLS[i].id === id) return TOOLS[i]; return null; }
 
   /* Where each skill is trained. `act` = we've built it, so the row navigates;
    * otherwise the row just reports where it would lead. */
   var SKILL_PLACE = {
-    "Bartending":    { where: "the Tavern and Canteen", act: "go-tavern" },
+    "Barkeeping":    { where: "the Tavern and Canteen", act: "go-tavern" },
     "Crafting":      { where: "the Crafts room",        act: "house-craft" },
     "Cooking":         { where: "the Canteen", act: "go-canteen" },
-    "Fighting":        { where: "the Sports complex" }, "Weapon handling": { where: "the Sports complex" },
-    "Protection":      { where: "the Sports complex", act: "go-sports" },
-    "Power":           { where: "the Gym", act: "go-sports", fac: "gym" },
-    "Durability":      { where: "the Forest Trail", act: "go-sports", fac: "trail" },
+    "Fighting":        { where: "the Sports complex" },
+    "Weapon handling": { where: "the sewer", act: "go-houses" },
+    "Defence":      { where: "the Sports complex", act: "go-sports" },
+    "Strength":           { where: "the Gym", act: "go-sports", fac: "gym" },
+    "Endurance":      { where: "the Forest Trail", act: "go-sports", fac: "trail" },
     "Speed":           { where: "the Stadium", act: "go-sports", fac: "stadium" },
-    "Skill":           { where: "the Boxing Hall", act: "go-sports", fac: "boxing" },
-    "Gardening":       { where: "the Botanical garden", act: "go-garden" },
-    "Stealing":        { where: "the Botanical garden", act: "go-garden" },
-    "Chemist":         { where: "the Drug lab", act: "go-druglab" }, "Blacksmithing": { where: "the Blacksmith", act: "go-anvil" },
+    "Dexterity":           { where: "the Boxing Hall", act: "go-sports", fac: "boxing" },
+    "Gardening":       { where: "the Garden", act: "go-garden" },
+    "Stealing":        { where: "the Garden", act: "go-garden" },
+    "Chemist":         { where: "the Drug lab", act: "go-druglab" }, "Smithing": { where: "the Blacksmith", act: "go-anvil" },
     "Medical science": { where: "the Packing table", act: "go-medpacking" },
     "Mining":          { where: "Mining" },
   };
 
   /* Which skill the place you're standing in trains — that row lights up. */
   function activeSkill() {
-    if (ui.place === "tavern") return "Bartending";
+    if (ui.place === "tavern") return "Barkeeping";
     if (ui.place === "canteen") return "Cooking";
     if (ui.place === "house") {
       if (ui.houseView === "craftcabinet" || ui.houseView === "station" || ui.houseView === "finished") return "Crafting";
       if (ui.houseView === "anvil" || ui.houseView === "anvilupgrade" ||
-          ui.houseView === "armory" || ui.houseView === "blackwarehouse") return "Blacksmithing";
+          ui.houseView === "armory" || ui.houseView === "blackwarehouse") return "Smithing";
       if (ui.houseView === "druglab" || ui.houseView === "chemjuicer" || ui.houseView === "labcabinet") return "Chemist";
       if (ui.houseView === "medmachine" || ui.houseView === "medpacking" ||
           ui.houseView === "medwarehouse") return "Medical science";
     }
+    // the street trains Stealing; the sewer under it trains Weapon handling
+    if (ui.place === "houses") return CF.houses.inSewer() ? "Weapon handling" : "Stealing";
     if (ui.place === "sports") {
-      if (ui.sportsFac === "gym") return "Power";
-      if (ui.sportsFac === "trail") return "Durability";
-      if (ui.sportsFac === "boxing") return "Skill";
+      if (ui.sportsFac === "gym") return "Strength";
+      if (ui.sportsFac === "trail") return "Endurance";
+      if (ui.sportsFac === "boxing") return "Dexterity";
       if (ui.sportsFac === "stadium") return "Speed";
     }
     return null;
@@ -120,14 +124,14 @@
   // third entry = the action that opens it; absent = not built yet
   var LOC_LEFT = [
     ["Bank", "(to settle with cash)", "go-bank"], ["Sports complex", "(work out)", "go-sports"],
-    ["House and sewage", "(steal)"], ["Tavern and Canteen", "(earn money)", "go-tavern"],
+    ["Villas and sewer", "(steal)", "go-houses"], ["Tavern and Canteen", "(earn money)", "go-tavern"],
     ["Casino", "(play gambling)", "go-casino"], ["Your house", "(many necessities)", "go-house"],
     ["Racing complex", "", "go-racing"],
   ];
   var LOC_RIGHT = [
-    ["Botanical garden", "(horticulture)", "go-garden"], ["Slum", "(market and fighting)", "go-slum"],
-    ["Hospital", "(treating patients)"],
-    ["Harbor", "(get fish)", "go-harbor"], ["Mining", ""], ["Streets", "(dealing in drugs)", "go-streets"],
+    ["Garden", "(horticulture)", "go-garden"], ["Slum", "(market and fighting)", "go-slum"],
+    ["Hospital", "(treating patients)", "go-hospital"],
+    ["Seaport", "(get fish)", "go-harbor"], ["Mining", ""], ["Streets", "(dealing in drugs)", "go-streets"],
   ];
 
   /* Your house — rooms and their stations. (Room 4 is absent in the reference,
@@ -236,33 +240,34 @@
     var customers = Math.round(CF.formulas.clientsPer10Min(p.reputation));
     var enough = p.tavernOpen;
 
-    var durLvl = CF.sports.durability().level;
+    var durLvl = CF.sports.endurance().level;
     var rows =
       srow("👤", "Name", esc(p.name), { act: "name-edit", cls: "clickable", vcls: "nameval" }) +
       srow("⭐", "Fame", fmt(totalFame()), { skill: "Fame" }) +
       '<div class="srow sep"></div>' +   // breathing room before the stat block
-      srow("🛡️", "Durability", fmt(durLvl) + " / " + fmt(durLvl),
-        { cls: lit0() === "Durability" ? "hl" : "", skill: "Durability" });
+      srow("🛡️", "Endurance", fmt(durLvl) + " / " + fmt(durLvl),
+        { cls: lit0() === "Endurance" ? "hl" : "", skill: "Endurance" });
     function lit0() { return activeSkill(); }
-    var icons = { "Fighting": "🥊", "Weapon handling": "🔫", "Protection": "🦺", "Power": "💪",
-      "Speed": "⚡", "Skill": "🎯", "Cooking": "🍳", "Gardening": "🌱", "Stealing": "🕵️",
-      "Chemist": "⚗️", "Crafting": "🔨", "Blacksmithing": "🔥", "Medical science": "⚕️",
+    var icons = { "Fighting": "🥊", "Weapon handling": "🔫", "Defence": "🦺", "Strength": "💪",
+      "Speed": "⚡", "Dexterity": "🎯", "Cooking": "🍳", "Gardening": "🌱", "Stealing": "🕵️",
+      "Chemist": "⚗️", "Crafting": "🔨", "Smithing": "🔥", "Medical science": "⚕️",
       "Mining": "⛏️" };
     // the skill trained where you're standing is the highlighted one
     var lit = activeSkill();
     c.rows.forEach(function (r) {
       if (r[0] === "Medical science") {
-        rows += srow("🍺", "Bartending", fmt(p.drinkMasterLevel),
-          { cls: lit === "Bartending" ? "hl" : "", skill: "Bartending" });
+        rows += srow("🍺", "Barkeeping", fmt(p.drinkMasterLevel),
+          { cls: lit === "Barkeeping" ? "hl" : "", skill: "Barkeeping" });
       }
       var val = r[0] === "Crafting" ? fmt(CF.craft.progress().level)
-              : r[0] === "Blacksmithing" ? fmt(CF.blacksmith.forgingProgress().level)
+              : r[0] === "Smithing" ? fmt(CF.blacksmith.forgingProgress().level)
               : r[0] === "Chemist" ? fmt(CF.chemist.progress().level)
               : r[0] === "Stealing" ? fmt(CF.garden.stealProgress().level)
               : r[0] === "Gardening" ? fmt(CF.garden.gardenProgress().level)
-              : r[0] === "Power" ? fmt(CF.sports.power().level)
+              : r[0] === "Strength" ? fmt(CF.sports.power().level)
               : r[0] === "Medical science" ? fmt(CF.medicine.progress().level)
               : r[0] === "Cooking" ? fmt(CF.canteen.progress().level)
+              : r[0] === "Weapon handling" ? fmt(CF.houses.weaponHandling().level)
               : r[0] === "Fighting" ? fightingValue() : r[1];
       rows += srow(icons[r[0]] || "•", r[0], val,
         { cls: lit === r[0] ? "hl" : "", skill: r[0] });
@@ -282,19 +287,30 @@
       srow("🏦", "Bank", fmt(p.bank), { cls: "clickable", act: "go-bank" }) +
       srow("🎫", "Tokens", fmt(p.tokens), { cls: "clickable", act: "go-casino" }) + drinkRow;
     // the backpack panel appears above the timer whenever you're carrying goods
-    // (craft supplies from the market, or plants stolen at the botanical garden)
-    var bp = CF.state.craft && CF.state.craft.backpack, bpHtml = "";
+    // (craft supplies from the market, or plants stolen at the garden)
+    /* ONE backpack panel holding everything you are carrying, the way the
+     * reference does it — it used to emit a separate panel per kind, which
+     * stacked up two identical headers as soon as you carried two things. */
+    var bp = CF.state.craft && CF.state.craft.backpack;
     var plantBp = CF.state.chemist && CF.state.chemist.backpackPlants;
+    var stolen = CF.houses ? CF.houses.items() : 0;
+    var parts = [], n = 0;
     if (plantBp) {
-      bpHtml += '<div class="panel bpack"><div class="bar">🎒 Your backpack</div><div class="bp-body">' +
-        '<div class="bp-skill">Plants: (holds <b>' + fmt(CF.ruleset.garden.plantBackpackSize) + "</b> )</div>" +
-        '<div class="bp-item"><a data-act="go-labcabinet">' + esc(plantBp.item) + " (" + fmt(plantBp.qty) + ")</a></div></div></div>";
+      parts.push('<div class="bp-skill">Plants: (holds <b>' + fmt(CF.ruleset.garden.plantBackpackSize) + "</b> )</div>" +
+        '<div class="bp-item"><a data-act="go-labcabinet">' + esc(plantBp.item) + " (" + fmt(plantBp.qty) + ")</a></div>");
     }
     if (bp) {
-      bpHtml += '<div class="panel bpack"><div class="bar">🎒 Your backpack</div><div class="bp-body">' +
-        '<div class="bp-skill">' + esc(CF.ruleset.craft.backpackSkill) + ": (holds <b>" + fmt(CF.craft.capacity()) + "</b> )</div>" +
-        '<div class="bp-item"><a data-act="craft-cabinet">' + esc(bp.item) + " (" + fmt(bp.qty) + ")</a></div></div></div>";
+      parts.push('<div class="bp-skill">' + esc(CF.ruleset.craft.backpackSkill) + ": (holds <b>" + fmt(CF.craft.capacity()) + "</b> )</div>" +
+        '<div class="bp-item"><a data-act="craft-cabinet">' + esc(bp.item) + " (" + fmt(bp.qty) + ")</a></div>");
     }
+    if (stolen > 0) {
+      parts.push('<div class="bp-item bp-num"><b>' + (++n) + '.</b> <a data-act="go-houses">' +
+        fmt(stolen) + " stolen item" + (stolen === 1 ? "" : "s") + "</a></div>");
+    }
+    var bpHtml = parts.length
+      ? '<div class="panel bpack"><div class="bar">🎒 Your backpack</div><div class="bp-body">' +
+        parts.join("") + "</div></div>"
+      : "";
     $("yourdata").innerHTML = '<div class="panel ydata"><div class="bar">Your data</div><div class="rows">' + rows + "</div></div>" + bpHtml;
     /* The update is a wall-clock event on the hour, so the box names the hour it
      * lands on — otherwise a countdown that starts at 43:07 looks like a bug. */
@@ -303,16 +319,16 @@
       '<div class="timer-at">at <b id="timerAt">' + hhmm(CF.clock.nextAt()) + "</b></div></div>";
   }
 
-  /* Skill hover panel (level, XP progress, fame, mini-ranking).
-   * Bartending and Crafting are real skills with live figures; the rest are
+  /* Dexterity hover panel (level, XP progress, fame, mini-ranking).
+   * Barkeeping and Crafting are real skills with live figures; the rest are
    * placeholders. Every skill shares the same level curve. */
   /* Fighting is a DERIVED stat — the mean of the six body stats, never trained
-   * directly (official help). Verified against the reference: Speed 10 + Power 13
-   * + Durability 37 + Protection 10 + Skill 10 + Weapon handling 2 = 82/6 = 13.67. */
+   * directly (official help). Verified against the reference: Speed 10 + Strength 13
+   * + Endurance 37 + Defence 10 + Dexterity 10 + Weapon handling 2 = 82/6 = 13.67. */
   function fightingValue() {
     var s = CF.sportsStatic;
-    var vals = [s.Speed, CF.sports.power().level, CF.sports.durability().level,
-                s.Protection, s.Skill, s["Weapon handling"]];
+    var vals = [s.Speed, CF.sports.power().level, CF.sports.endurance().level,
+                s.Defence, s.Dexterity, CF.houses.weaponHandling().level];
     var sum = vals.reduce(function (a, b) { return a + b; }, 0);
     return (sum / vals.length).toFixed(2);
   }
@@ -322,26 +338,26 @@
   function allSkillLevels() {
     var p = CF.state.player, out = [];
     function add(icon, name, lvl) { out.push({ icon: icon, name: name, level: lvl }); }
-    add("🍺", "Bartending", p.drinkMasterLevel);
+    add("🍺", "Barkeeping", p.drinkMasterLevel);
     add("🔨", "Crafting", CF.craft.progress().level);
-    add("🔥", "Blacksmithing", CF.blacksmith.forgingProgress().level);
+    add("🔥", "Smithing", CF.blacksmith.forgingProgress().level);
     add("⚗️", "Chemist", CF.chemist.progress().level);
     add("🕵️", "Stealing", CF.garden.stealProgress().level);
     add("🌱", "Gardening", CF.garden.gardenProgress().level);
-    add("🛡️", "Durability", CF.sports.durability().level);
-    add("💪", "Power", CF.sports.power().level);
-    add("🔫", "Weapon handling", CF.sportsStatic["Weapon handling"]);
-    add("🦺", "Protection", CF.sportsStatic["Protection"]);
+    add("🛡️", "Endurance", CF.sports.endurance().level);
+    add("💪", "Strength", CF.sports.power().level);
+    add("🔫", "Weapon handling", CF.houses.weaponHandling().level);
+    add("🦺", "Defence", CF.sportsStatic["Defence"]);
     add("⚡", "Speed", CF.sportsStatic["Speed"]);
-    add("🎯", "Skill", CF.sportsStatic["Skill"]);
+    add("🎯", "Dexterity", CF.sportsStatic["Dexterity"]);
     add("🍳", "Cooking", CF.canteen.progress().level);
     add("⚕️", "Medical science", CF.medicine.progress().level);
     add("⛏️", "Mining", 1);
     return out;
   }
   /* Fame is the SUM of every skill's fame contribution (confirmed: a 2,830-fame
-   * account broke down as 1,296 from Bartending 12 (12²·9) + 1,452 from
-   * Durability 27 ((27−5)²·3) + the level-1 remainder, summing exactly). */
+   * account broke down as 1,296 from Barkeeping 12 (12²·9) + 1,452 from
+   * Endurance 27 ((27−5)²·3) + the level-1 remainder, summing exactly). */
   function fameParts() {
     return allSkillLevels().map(function (s) {
       return { icon: s.icon, name: s.name, level: s.level, fame: CF.formulas.fameFor(s.name, s.level) };
@@ -383,13 +399,13 @@
     var p = CF.state.player, info = null;
     // Fighting is derived — the reference shows NO panel for it at all.
     if (skill === "Fighting") return "";
-    if (skill === "Bartending") {
+    if (skill === "Barkeeping") {
       info = { icon: "🍺", level: p.drinkMasterLevel, into: p.drinkMasterPoints,
                lifetime: p.dmLifetime || 0 };
     } else if (skill === "Crafting") {
       var cp = CF.craft.progress(), needC = CF.formulas.pointsToNextLevel(cp.level);
       info = { icon: "🔨", level: cp.level, into: needC - cp.pointsToLevel, lifetime: cp.lifetime };
-    } else if (skill === "Blacksmithing") {
+    } else if (skill === "Smithing") {
       var fp = CF.blacksmith.forgingProgress(), needF = CF.formulas.pointsToNextLevel(fp.level);
       info = { icon: "🔥", level: fp.level, into: needF - fp.pointsToLevel, lifetime: fp.lifetime };
     } else if (skill === "Chemist") {
@@ -401,10 +417,10 @@
     } else if (skill === "Gardening") {
       var gp2 = CF.garden.gardenProgress();
       info = { icon: "🌱", level: gp2.level, into: gp2.into, lifetime: gp2.lifetime };
-    } else if (skill === "Durability") {
-      var dp = CF.sports.durability();
+    } else if (skill === "Endurance") {
+      var dp = CF.sports.endurance();
       info = { icon: "🛡️", level: dp.level, into: dp.into, lifetime: dp.lifetime };
-    } else if (skill === "Power") {
+    } else if (skill === "Strength") {
       var pw = CF.sports.power();
       info = { icon: "💪", level: pw.level, into: pw.into, lifetime: pw.lifetime };
     } else if (skill === "Cooking") {
@@ -413,6 +429,9 @@
     } else if (skill === "Medical science") {
       var ms = CF.medicine.progress();
       info = { icon: "⚕️", level: ms.level, into: ms.into, lifetime: ms.lifetime };
+    } else if (skill === "Weapon handling") {
+      var wh = CF.houses.weaponHandling();
+      info = { icon: "🔫", level: wh.level, into: wh.into, lifetime: wh.lifetime };
     }
     if (!info) {
       return '<div class="sp-head"><span>' + esc(skill) + '</span><span class="sp-lvl">' + esc(valText) + "</span></div>" +
@@ -507,7 +526,8 @@
   function screenKey() {
     return [ui.place, ui.houseView || "", ui.tool || "", ui.sportsFac || "",
             ui.gardenTab || "", ui.medView || "", ui.canRoom || "", ui.hbView || "",
-            ui.slumCounter || "", (CF.state.casino && CF.state.casino.game) || ""].join("|");
+            ui.slumCounter || "", ui.slumArea || "", ui.bunkerTab || "",
+            (CF.state.casino && CF.state.casino.game) || ""].join("|");
   }
 
   function renderPlace() {
@@ -521,10 +541,12 @@
     else if (ui.place === "bank") renderBank();
     else if (ui.place === "casino") houseGate("casino", "Casino", "Your house must be at least level ") || renderCasino();
     else if (ui.place === "racing") houseGate("racing", "Racing complex", "To reach the racing complex your house must be at least level ") || renderRacing();
-    else if (ui.place === "garden") houseGate("garden", "Botanical Garden", "To access the botanical garden, your house must be at least level ") || renderGarden();
+    else if (ui.place === "garden") houseGate("garden", "Garden", "To access the garden, your house must be at least level ") || renderGarden();
+    else if (ui.place === "houses") renderHouses();
     else if (ui.place === "sports") renderSports();
     else if (ui.place === "canteen") renderCanteen();
     else if (ui.place === "harbor") renderHarbor();
+    else if (ui.place === "hospital") renderHospital();
     else renderTavern();
   }
 
@@ -608,7 +630,7 @@
 
   /* House-level building (official docs): cost 3× per level, gated by Crafting. */
   function houseNextCost(lvl) { var h = CF.ruleset.house; return Math.round(h.costBase * Math.pow(h.costRatio, lvl)); }
-  /* What the NEXT house level needs. Level 1 is gated on Bartending (you have
+  /* What the NEXT house level needs. Level 1 is gated on Barkeeping (you have
    * no crafts room yet); every level after that on Crafting = current x 10. */
   function houseReq(lvl) {
     var h = CF.ruleset.house;
@@ -760,6 +782,9 @@
     if (o.err) h += '<div class="notice err"><b>' + errLabel + "</b> " + body(o.err) + "</div>";
     else if (o.msg) h += '<div class="notice"><b>' + label + "</b> " + body(o.msg) + "</div>";
     else if (o.reserve && !(o.errors || []).length) h += '<div class="notice" style="visibility:hidden"><b>' + label + "</b> &nbsp;</div>";
+    /* A plain yellow follow-up line, same box as a level-up. The sewer uses it
+     * for "This was delivered to you in the bank vault." and the like. */
+    if (o.note) h += '<div class="levelup">' + body(o.note) + "</div>";
     if (o.levelUp != null && o.levelUp !== false) {
       var lu = o.levelUp, skill = o.skill || (lu && lu.skill), level = (lu && lu.level != null) ? lu.level : lu;
       h += '<div class="levelup">Your ' + esc(String(skill).toLowerCase()) + " level is now <b>" + fmt(level) + "</b>.</div>";
@@ -899,7 +924,7 @@
 
   function anvilNoticeHtml() {
     return noticeHtml({ err: ui.anvilError, msg: ui.anvilNotice, label: "MESSAGE", reserve: true,
-                        levelUp: ui.anvilLevelUp, skill: "Blacksmithing" });
+                        levelUp: ui.anvilLevelUp, skill: "Smithing" });
   }
   function anvilNeedHtml() {
     var w = ui.anvilSel;
@@ -915,8 +940,8 @@
   function anvilForgingHtml() {
     var p = CF.blacksmith.forgingProgress();
     return '<table class="ctbl">' +
-      '<tr><td class="k">Blacksmithing level:</td><td class="v">' + fmt(p.level) + "</td></tr>" +
-      '<tr><td class="k">Blacksmithing points:</td><td class="v">' + fmt(p.lifetime) + "</td></tr>" +
+      '<tr><td class="k">Smithing level:</td><td class="v">' + fmt(p.level) + "</td></tr>" +
+      '<tr><td class="k">Smithing points:</td><td class="v">' + fmt(p.lifetime) + "</td></tr>" +
       '<tr><td class="k">Points to level:</td><td class="v">' + fmt(p.pointsToLevel) + "</td></tr></table>";
   }
   function anvilMaterialsHtml() {
@@ -996,7 +1021,7 @@
       '<div class="station">' +
         '<div class="st-left"><div class="bar">Improve the anvil</div>' +
           '<table class="ctab up">' +
-            '<tr><td>To improve you need:</td><td>' + req("Level " + s.reqForging + " Blacksmithing", s.forgingOk) +
+            '<tr><td>To improve you need:</td><td>' + req("Level " + s.reqForging + " Smithing", s.forgingOk) +
               "<br>" + req("Level " + s.reqHouse + " House", s.houseOk) + "</td></tr>" +
             '<tr><td>Upgrade price:</td><td>' + req(fmt(s.priceQty) + " kg x " + esc(s.priceMat), s.matOk) + "</td></tr>" +
           "</table>" +
@@ -1126,7 +1151,7 @@
         '<tr><td><input type="number" id="juicerQty" data-role="juicerqty" min="1" value="' + esc(ui.juicerQty) + '"></td>' +
         '<td><select id="juicerPlant" data-role="juicerplant">' + opts + "</select></td></tr></table>" +
         '<div class="cbtn"><button class="btn" data-act="chem-press">Make juice from plants</button></div>' +
-        '<p class="nb"><b>NOTE!</b> You can steal plants from the <a data-act="go-garden">botanical garden greenhouse</a>.</p>' +
+        '<p class="nb"><b>NOTE!</b> You can steal plants from the <a data-act="go-garden">garden greenhouse</a>.</p>' +
       "</div>" +
       '<div class="st-right">' + chemJuicesHtml(false) + "</div></div>" + craftFooter();
   }
@@ -1319,12 +1344,60 @@
     else body = controlView();
     CF._svg.port = "";
     $("locationPanel").innerHTML =
-      '<div class="panel hb"><div class="bar">Harbor</div>' +
-      '<div class="hb-art">' + locArt("port.png", "hb-img", "port", "Harbor") + "</div>" +
+      '<div class="panel hb"><div class="bar">Seaport</div>' +
+      '<div class="hb-art">' + locArt("port.png", "hb-img", "port", "Seaport") + "</div>" +
       harborTabs() +
       (ui.hbTab === "yard" ? "" : vesselNav()) +
       '<div id="hbNotice" class="notice-slot">' + hbNoticeHtml() + "</div>" +
       '<div class="hb-body">' + body + "</div></div>";
+  }
+
+  /* ========================= HOSPITAL ==================================
+   * The treatment desk. Everything else the reference's hospital does — the
+   * wards, the surgery, the cleanliness and nursing figures, the parking and
+   * the daily books — is listed but inert, so the place reads right without
+   * pretending to run a business it does not run yet. */
+  function hospitalRoomsHtml() {
+    var rows = CF.hospital.rooms().map(function (r) {
+      return '<div class="hsp-room' + (r.live ? " live" : " dead") + '">' + esc(r.name) +
+        (r.live ? "" : ' <span class="hsp-soon">not built</span>') + "</div>";
+    }).join("");
+    return '<div class="hsp-rooms">' + rows + "</div>";
+  }
+  function hospitalBody() {
+    var H = CF.hospital, cur = H.endurance(), max = H.maxEndurance();
+    var pct = Math.max(0, Math.min(100, cur / max * 100));
+    var kits = H.kits(), need = H.kitsNeeded(), price = H.price();
+    var canCash = CF.state.player.money >= price, canKit = kits >= need;
+    var well = !H.hurt();
+    return '<div class="hsp-desk">' +
+      '<div class="hsp-bar">Endurance: <span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span> ' +
+        "<b>" + fmt(cur) + "</b> / " + fmt(max) + "</div>" +
+      (well
+        ? '<p class="hsp-well">You are in one piece. Nothing here to do.</p>'
+        : "<p>A lost fight in the sewer leaves you at nothing, and only this desk will put it back.</p>") +
+      '<div class="hsp-acts">' +
+        '<button class="btn" data-act="hsp-cash"' + (well || !canCash ? " disabled" : "") + ">" +
+          "Get treated at the hospital (Cost: " + fmt(price) + " CC)</button>" +
+        '<button class="btn" data-act="hsp-kit"' + (well || !canKit ? " disabled" : "") + ">" +
+          "Use one first aid kit for treatment (Total: " + fmt(kits) + ")</button>" +
+      "</div>" +
+      (!well && !canCash && !canKit
+        ? '<p class="nb">NOTE! You cannot afford the fee and you have no first aid kits. Kits are packed at the ' +
+          '<a data-act="go-house" >medicine laboratory</a> from your own medicines.</p>' : "") +
+      "</div>";
+  }
+  function hspNoticeHtml() {
+    return noticeHtml({ err: ui.hspError, msg: ui.hspNotice, label: "NOTICE", errLabel: "ERROR!", nums: true });
+  }
+  function renderHospital() {
+    $("locationPanel").innerHTML =
+      '<div class="panel hsp"><div class="bar">Hospital</div>' +
+      '<div id="hspNotice" class="notice-slot">' + hspNoticeHtml() + "</div>" +
+      hospitalRoomsHtml() +
+      hospitalBody() +
+      '<p class="acc-note">The hospital only treats you for now. Running it as a business — its level, wards, ' +
+      "surgery, staff and books — is still to come.</p></div>";
   }
 
   /* ================= CANTEEN — the tavern's SECOND FLOOR ================ */
@@ -1338,7 +1411,7 @@
         "</b> liters at a time. One liter costs <b>" + c.rawMilkPerLiter + "</b> liter of raw milk and <b>" +
         c.waterPerLiter + "</b> of water.</li>" +
       "<li><b>Fruit</b> arrives on its own: every plant you harvest in the edible garden sends <b>20 fruit</b> " +
-        "straight to the <b>Canteen granary</b>. <b>Fish</b> comes from the Harbor's fishing boat.</li>" +
+        "straight to the <b>Canteen granary</b>. <b>Fish</b> comes from the Seaport's fishing boat.</li>" +
       "<li><b>Cook</b> at the <b>Vegetarian corner</b> (two fruits + a dairy product) or the <b>Fish food table</b> " +
         "(fish + fruit + dairy). You choose how many hours the dish should last, up to <b>" + c.maxHours + "</b>.</li>" +
       "<li>A finished dish sits on the <b>Food menu</b> for those hours and your customers eat from it. " +
@@ -1481,7 +1554,7 @@
           return '<tr><td class="nm">' + esc(x.name) + ' <span class="lvl">( Level ' + lv + " )</span></td>" +
             '<td class="q">' + fmt(x.qty) + ' <span class="lvl">kg</span></td></tr>';
         }).join("")
-      : '<tr><td colspan="2" class="none">You have no fish — the fishing boat at the Harbor isn\'t built yet.</td></tr>';
+      : '<tr><td colspan="2" class="none">You have no fish — the fishing boat at the Seaport isn\'t built yet.</td></tr>';
     return '<table class="medtbl can-fish"><tr class="sect"><th>Fish in the fish store</th><th>Quantity</th></tr>' +
       rows + "</table>";
   }
@@ -1938,7 +2011,7 @@
         (CF.garden.canStealMedSeeds()
           ? stealBlock("Steal seeds to grow medicinal plants", "stealMed", "stealmed", seedOpts("medicinal", ui.stealMedSel), "steal-medicinal", "Steal the seeds of a medicinal plant")
           : lockedBlock("Steal seeds to grow medicinal plants", "Your house must be at least <b>level " + hl + "</b> to steal herb seeds!")) +
-        '<p class="garden-help"><a data-act="garden-help">Read the help page on stealing from the botanical garden</a></p>';
+        '<p class="garden-help"><a data-act="garden-help">Read the help page on stealing from the garden</a></p>';
     } else if (tab === "tickets") {
       var left = CF.garden.ticketOfficeSecondsLeft();
       info = ticketInfoHtml();
@@ -1971,9 +2044,9 @@
     // two columns: tabs + centred info on the left, artwork on the right — so the
     // info text stays in a clean centred block instead of wrapping round the image.
     $("locationPanel").innerHTML =
-      '<div class="panel"><div class="bar">Botanical Garden</div>' +
+      '<div class="panel"><div class="bar">Garden</div>' +
       '<div class="garden-head"><div class="gh-left">' + gardenTabsHtml() + info + "</div>" +
-        '<div class="gh-right">' + locArt("botanical-garden.gif", "gh-art", "greenhouse", "Botanical garden") + "</div></div>" +
+        '<div class="gh-right">' + locArt("botanical-garden.gif", "gh-art", "greenhouse", "Garden") + "</div></div>" +
       body + "</div>";
   }
 
@@ -2231,7 +2304,7 @@
     return noticeHtml({ err: ui.sportError, msg: ui.sportNotice, reserve: true });
   }
   function trailPanel() {
-    var d = CF.sports.durability(), run = CF.sports.runState();
+    var d = CF.sports.endurance(), run = CF.sports.runState();
     if (run) {
       var left = CF.sports.runSecondsLeft(), h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60);
       return '<div class="sp-need">You need <b>' + fmt(d.pointsToLevel) + "</b> more stamina points to level up.</div>" +
@@ -2262,7 +2335,7 @@
     CF.sports.regenEnergy();
     var p = CF.sports.power(), e = CF.state.sports.handEnergy || 0, max = CF.sports.maxHandEnergy();
     var pct = Math.max(0, Math.min(100, e / max * 100));
-    return '<div class="sp-need" id="gymNeed">You still need <b>' + fmt(p.pointsToLevel) + "</b> power points to level up.</div>" +
+    return '<div class="sp-need" id="gymNeed">You still need <b>' + fmt(p.pointsToLevel) + "</b> strength points to level up.</div>" +
       '<div class="energy" id="gymEnergy">Hand energy: <span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span> ( <b>' + fmt(e) + "</b> / " + fmt(max) + " )</div>" +
       '<div class="lifts">' + CF.gymLifts.map(function (l) {
         return '<div class="lift"><a data-act="sports-lift" data-lift="' + esc(l.label) + '">' + esc(l.label) + ":</a> " +
@@ -2284,7 +2357,7 @@
     } else ui.sportError = lr.msg;
     var p = CF.sports.power(), e = CF.state.sports.handEnergy || 0, max = CF.sports.maxHandEnergy();
     var pct = Math.max(0, Math.min(100, e / max * 100));
-    if ($("gymNeed")) $("gymNeed").innerHTML = "You still need <b>" + fmt(p.pointsToLevel) + "</b> power points to level up.";
+    if ($("gymNeed")) $("gymNeed").innerHTML = "You still need <b>" + fmt(p.pointsToLevel) + "</b> strength points to level up.";
     if ($("gymEnergy")) $("gymEnergy").innerHTML = 'Hand energy: <span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span> ( <b>' + fmt(e) + "</b> / " + fmt(max) + " )";
     if ($("sportNotice")) $("sportNotice").innerHTML = sportsNoticeHtml();
     if ($("sportEquip")) $("sportEquip").innerHTML = sportsEquipHtml();
@@ -2550,10 +2623,15 @@
     return !p;                                                 // Highway/Market have neither gate
   }
   function renderSlum() {
+    /* Two areas are places you can actually walk into now: the Market, and the
+     * Betting Bunker. Picking one swaps what fills the rest of the page. */
+    var AREA_VIEW = { "Market": "market", "Betting Bunker": "bunker" };
+    var view = ui.slumArea || "market";
     var areas = SLUM_AREAS.map(function (a) {
-      var open = slumAreaOpen(a[0]);
-      var sel = a[0] === "Market" ? " sel" : "";
-      var act = a[0] === "Market" ? "" : ' data-act="todo" data-what="' + esc(a[0]) + '"';
+      var open = slumAreaOpen(a[0]), v = AREA_VIEW[a[0]];
+      var sel = v && v === view ? " sel" : "";
+      var act = v && open ? ' data-act="slum-area" data-area="' + v + '"'
+                          : ' data-act="todo" data-what="' + esc(a[0]) + '"';
       // two lines only: the name, then the access state
       return '<div class="area' + sel + '"><div class="a-name"><a' + act + ">" + esc(a[0]) + "</a></div>" +
         '<div class="a-acc">Access: <b class="' + (open ? "on" : "no") + '">' + (open ? "YES" : "NO") + "</b></div></div>";
@@ -2574,16 +2652,344 @@
       return '<tr class="mrow dead" data-act="todo" data-what="' + esc(c[0]) + '">' +
         "<td>" + esc(c[0]) + '</td><td class="c"><span class="notbuilt" title="Not built yet">&#128683;</span></td></tr>';
     }).join("");
+    var body = view === "bunker"
+      ? bunkerPanel()
+      : '<table class="market">' + rows + "</table>" +
+        (ui.slumCounter === "craft" ? craftCounterPanel()
+          : ui.slumCounter === "drugbelt" ? drugBeltCounterPanel()
+          : ui.slumCounter === "tickets" ? slumTicketCounterPanel()
+          : ui.slumCounter === "culinary" ? culinaryCounterPanel()
+          : '<p class="acc-note">Pick a counter — Craft supplies, the Culinary exchange, the Drug belt counter and the Ticket counter are built.</p>');
     $("locationPanel").innerHTML =
       '<div class="panel"><div class="bar">Slum</div>' +
       (CF._svg.slum = SLUM_ART, locArt("slumm.gif", "slumart", "slum", "Slum")) +
-      '<div class="slum-areas">' + areas + "</div>" +
-      '<table class="market">' + rows + "</table>" +
-      (ui.slumCounter === "craft" ? craftCounterPanel()
-        : ui.slumCounter === "drugbelt" ? drugBeltCounterPanel()
-        : ui.slumCounter === "tickets" ? slumTicketCounterPanel()
-        : ui.slumCounter === "culinary" ? culinaryCounterPanel()
-        : '<p class="acc-note">Pick a counter — Craft supplies, the Culinary exchange, the Drug belt counter and the Ticket counter are built.</p>') +
+      '<div class="slum-areas">' + areas + "</div>" + body + "</div>";
+  }
+
+  /* ==================== HOUSE AND SEWAGE (the map) =====================
+   * Walk the streets, rob the houses. Tiles are a plain CSS grid rather than
+   * the reference's isometric art — same game, drawn in this game's own style.
+   * Clicking a tile selects it and shows what you can do right there, which is
+   * the reference's tooltip without the pixel-positioning maths. */
+  /* Tiles are cut from the reference's own sprite sheet now, so a tile is just
+   * a background-position — no hand-drawn shapes left. */
+  function houseTile(x, y) {
+    var s = CF.houses.spriteFor(x, y), p = CF.houses.pos(), Z = CF.houseMap.zoom;
+    var inside = CF.houses.inBounds(x, y);
+    var cls = "ht" + (inside ? "" : " ht-void");
+    var sel = CF.state.houses.sel;
+    if (sel && sel.x === x && sel.y === y) cls += " sel";
+    if (inside) {
+      var c = CF.houses.cellAt(x, y);
+      if (c === "house" || c === "road") cls += " klik";      // a tile worth clicking
+    }
+    var me = (x === p.x && y === p.y)
+      ? '<img class="ht-you" src="img/here.png" alt="You are here">' : "";
+    /* An opponent wears its level, coloured by how the fight would actually go
+       for you right now — you should be able to read a floor at a glance and
+       walk away from the ones that would empty you. */
+    if (inside && CF.houses.inSewer()) {
+      var th = CF.houses.threat(x, y);
+      if (th) me += '<span class="ht-lvl ' + th.band + '" title="' + esc(th.name) +
+        " (level " + th.level + ") — " + th.band + '">' + th.level + "</span>";
+    }
+    // offsets scale with the sprite, so the sheet is read at 2x cleanly
+    return '<div class="' + cls + '" style="background-position:' + (s.bx * Z) + "px " + (s.by * Z) + 'px"' +
+      (inside ? ' data-act="hs-pick" data-x="' + x + '" data-y="' + y + '"' : "") + ">" + me + "</div>";
+  }
+  /* The action menu is the reference's radial dial: a 110x100 disc holding a
+   * 3x3 grid of icons cut from villa_icons.png. Move sits in the middle, the
+   * thing you came to do sits top-left, and climbing down sits bottom-middle —
+   * the same slots the original uses, so the muscle memory carries over.
+   *
+   * It is a sibling of the sliding layer, not a child: the window clips its
+   * overflow, and inside it the scroll animation would drag it along. Clamped
+   * to the window so it is always fully visible. */
+  var HT_ICON = { climb: 0, climb_down: -30, climb_up: -60, move: -90,
+                  steal: -120, take: -150, fight: -180, treasure: -210 };
+  function htIcon(o, x, y, icon, title) {
+    if (!o) return '<span class="ht-cell"></span>';
+    var afford = o.cost == null || o.cost <= CF.houses.moves();
+    var cost = o.cost ? " (" + o.cost + " move" + (o.cost === 1 ? "" : "s") + ")" : "";
+    return '<a class="ht-cell ht-ico' + (afford ? "" : " off") + '" data-act="hs-do" data-do="' + o.act +
+      '" data-x="' + x + '" data-y="' + y + '" title="' + esc(title + cost) + '"' +
+      ' style="background-position:0 ' + HT_ICON[icon] + 'px"></a>';
+  }
+  function houseActionChip(x, y) {
+    var opts = CF.houses.optionsAt(x, y), cam = CF.houses.camera(), M = CF.houseMap;
+    var by = {};
+    opts.forEach(function (o) { if (o.act && !by[o.act]) by[o.act] = o; });
+    var dead = opts.filter(function (o) { return o.dead; })[0];
+
+    // centre the dial on the tile, then keep it inside the window
+    var vx = x - cam.x, vy = y - cam.y;
+    var W = M.viewW * M.tileW, H = M.viewH * M.tileH, dw = 110, dh = 110;
+    var left = Math.max(0, Math.min(W - dw, vx * M.tileW + M.tileW / 2 - dw / 2));
+    var top = Math.max(0, Math.min(H - dh, vy * M.tileH + M.tileH / 2 - dh / 2));
+
+    var steal = by.walksteal || by.steal;
+    var cells;
+    if (CF.houses.inSewer()) {
+      var mon = CF.houses.monsterAt(x, y);
+      cells = [
+        htIcon(by.attack, x, y, "fight", mon ? "Attack the " + mon.name.toLowerCase() + " (level " + mon.level + ")" : "Attack"),
+        htIcon(by.up, x, y, "climb_up", CF.houses.level() > 1 ? "Climb up a level" : "Climb up to the street"), "",
+        "", htIcon(by.walk, x, y, "move", "Walk here"), "",
+        htIcon(by.treasure, x, y, "treasure", "Take the treasure"),
+        htIcon(by.down, x, y, "climb_down", "Climb down a level"), "",
+      ];
+    } else {
+      cells = [
+        htIcon(steal, x, y, "steal", steal ? (by.steal ? "Steal from the house" : "Walk here and steal") : ""),
+        "", "",
+        "", htIcon(by.walk, x, y, "move", "Walk here"), "",
+        "", htIcon(by.sewer || by.sewerwalk, x, y, "climb", "Climb to a new level"), "",
+      ];
+    }
+    cells = cells.map(function (c) { return c || '<span class="ht-cell"></span>'; }).join("");
+
+    return '<div class="ht-dial" style="left:' + left + "px;top:" + top + 'px">' + cells +
+      (dead && !steal && !by.walk ? '<div class="ht-dial-note">' + esc(dead.label) + "</div>" : "") +
+      "</div>";
+  }
+  /* The WHOLE district is built, and a fixed window looks at part of it. The
+   * district is what moves — it is translated under the window — so walking
+   * slides the streets past you instead of teleporting a dot between tiles.
+   * That is also why the tile size is a fixed pixel count: the translate needs
+   * real numbers to animate between. A margin of void tiles is drawn around the
+   * district so the window is never short of something to show. */
+  function houseMapGrid() {
+    CF.houses.ensureMap();
+    var S = CF.state.houses, M = CF.houseMap, sel = S.sel, cam = CF.houses.camera();
+    var pad = Math.max(Math.ceil(M.viewW / 2), Math.ceil(M.viewH / 2)) + 1;
+    var x0 = -pad, y0 = -pad, x1 = S.w + pad, y1 = S.h + pad, out = "";
+    for (var y = y0; y < y1; y++) {
+      for (var x = x0; x < x1; x++) out += houseTile(x, y);
+    }
+    var cols = x1 - x0;
+    var chip = sel && CF.houses.inBounds(sel.x, sel.y) ? houseActionChip(sel.x, sel.y) : "";
+    return '<div class="ht-view" style="width:' + (M.viewW * M.tileW) + "px;height:" + (M.viewH * M.tileH) + 'px">' +
+      '<div class="ht-map" id="htMap" style="grid-template-columns:repeat(' + cols + "," + M.tileW + "px);" +
+        "grid-auto-rows:" + M.tileH + "px;" +
+        "transform:translate(" + ((x0 - cam.x) * M.tileW) + "px," + ((y0 - cam.y) * M.tileH) + 'px)">' +
+      out + "</div>" + chip + "</div>";
+  }
+  /* Make the slide actually animate. renderPlace rebuilds the DOM, so a fresh
+   * element would simply appear at its new offset; put it back where it was,
+   * let the browser take that, then move it. */
+  function houseMapSlide() {
+    var el = $("htMap"); if (!el) return;
+    var M = CF.houseMap, cam = CF.houses.camera(), prev = ui.hsCamPrev;
+    var pad = Math.max(Math.ceil(M.viewW / 2), Math.ceil(M.viewH / 2)) + 1;
+    function at(c) { return "translate(" + ((-pad - c.x) * M.tileW) + "px," + ((-pad - c.y) * M.tileH) + "px)"; }
+    if (prev && (prev.x !== cam.x || prev.y !== cam.y)) {
+      /* Duration grows with the distance but is capped, so a one-tile step is
+       * instant-feeling and a twenty-tile walk still lands in half a second
+       * instead of either crawling or teleporting. */
+      var steps = Math.abs(cam.x - prev.x) + Math.abs(cam.y - prev.y);
+      var secs = Math.min(0.75, 0.18 + steps * 0.05);
+      el.style.transition = "none";
+      el.style.transform = at(prev);
+      void el.offsetWidth;                  // force the browser to accept the old spot
+      el.style.transition = "transform " + secs.toFixed(2) + "s cubic-bezier(.25,.1,.25,1)";
+      el.style.transform = at(cam);
+    }
+    ui.hsCamPrev = { x: cam.x, y: cam.y };
+  }
+  function renderHouses() {
+    CF.houses.ensureMap();
+    var mv = CF.houses.moves(), mx = CF.houses.movesMax();
+    var pct = Math.max(0, Math.min(100, mv / mx * 100));
+    var sp = CF.garden.stealProgress();
+    var left = Math.max(0, CF.formulas.pointsToNextLevelFor("Stealing", sp.level) - sp.into);
+    var pos = CF.houses.pos();
+
+    $("locationPanel").innerHTML =
+      '<div class="panel"><div class="bar">Villas and sewer</div>' +
+      (CF.houses.inSewer() ? sewerHead() : '<div class="hs-head">' +
+        '<div class="hs-blurb">When you steal from a villa you have a <b>1 in 10</b> chance of turning up a ' +
+          '<b>stolen item</b>, which is what the bank\'s reputation is built from. Money is far more common, ' +
+          "and a greenhouse ticket turns up now and then.</div>" +
+        '<div class="hs-stats">' +
+          '<div class="hs-mv barline">' + barLine("Villa moves", mv, mx) + "</div>" +
+          '<div class="hs-sp"><b>' + fmt(left) + "</b> steal points to level up</div>" +
+          (CF.houses.items() > 0
+            ? '<div class="hs-sp">Stolen items in your backpack: <b>' + fmt(CF.houses.items()) + "</b></div>" : "") +
+        "</div>" +
+      "</div>") +
+      '<div id="hsNotice" class="notice-slot">' + houseNoticeHtml() + "</div>" +
+      houseMapGrid() +
+      (CF.houses.inSewer()
+        ? '<p class="hs-note"><b>NOTE!</b> If there is no one left to fight, wait for the update — it puts new ' +
+          "company on the map and tops your moves back up.</p>"
+        : '<p class="hs-note"><b>NOTE!</b> If there are no red villas left, wait for the update. ' +
+          "Moves come back <b>+" + CF.ruleset.perUpdate.houseGear + "</b> an update, and when they do every villa " +
+          "is worth robbing again.</p>") +
+      '<p class="hs-note">You are at <b>' + pos.x + ", " + pos.y + "</b> of " +
+        CF.state.houses.w + " &times; " + CF.state.houses.h +
+        (CF.houses.inSewer() ? ", level <b>" + CF.houses.level() + "</b>" : "") + ".</p>" +
+      "</div>";
+    houseMapSlide();
+  }
+  function sewerHead() {
+    var mv = CF.houses.moves(), mx = CF.houses.movesMax();
+    var pct = Math.max(0, Math.min(100, mv / mx * 100));
+    var wh = CF.houses.weaponHandling();
+    return '<div class="hs-head">' +
+      '<div class="hs-blurb">You are <b>' + CF.houses.level() + '</b> level' +
+        (CF.houses.level() === 1 ? "" : "s") + " down. Fighting what lives here trains " +
+        "<b>Weapon handling</b>, and what you kill sometimes drops a chest. " +
+        "Lose a fight and your endurance is gone until a hospital puts you right, " +
+        "so pick the ones you can win. You can climb from any tunnel tile.</div>" +
+      '<div class="hs-stats">' +
+        '<div class="hs-mv barline">' + barLine("Sewer moves", mv, mx) + "</div>" +
+        '<div class="hs-sp"><b>' + fmt(wh.pointsToLevel) + "</b> weapon handling points to level up</div>" +
+      "</div></div>";
+  }
+  function houseNoticeHtml() {
+    return noticeHtml({ err: ui.hsError, msg: ui.hsNotice, label: "NOTICE", errLabel: "ERROR!", nums: true,
+                        note: ui.hsSub, levelUp: ui.hsLevelUp,
+                        skill: CF.houses.inSewer() ? "Weapon handling" : "Stealing" });
+  }
+
+  /* ---------------------- THE BETTING BUNKER ---------------------------
+   * Three tabs, exactly the ones the reference room had: place a bet, watch it
+   * run, look back at the last few. The events are the bunker's own — see
+   * data/betting.js for why it is not wired to the Racing complex. */
+  function bunkerTab() {
+    // a finished slip pulls you to the result rather than leaving you on a form
+    if (!ui.bunkerTab && CF.betting.active()) return "active";
+    return ui.bunkerTab || "place";
+  }
+  function bunkerNav() {
+    var cur = bunkerTab(), a = CF.betting.active();
+    var badge = a ? (a.settled ? " (1)" : " (running)") : "";
+    return '<div class="bunk-nav">' +
+      [["place", "Place bets"], ["active", "Active bets" + badge], ["history", "Bet history"]]
+        .map(function (t) {
+          return t[0] === cur ? "<b>" + t[1] + "</b>"
+            : '<a data-act="bunk-tab" data-tab="' + t[0] + '">' + t[1] + "</a>";
+        }).join("") + "</div>";
+  }
+  function bunkerNoticeHtml() {
+    /* No reserved row here: the bunker has no autoclicked button whose position
+     * must not move, so an always-present empty notice would just be a gap. */
+    return noticeHtml({ err: ui.bunkNotice ? null : ui.bunkError, msg: ui.bunkNotice,
+                        label: "NOTICE", errLabel: "ERROR!", nums: true });
+  }
+
+  /* Tab 1 — the board. Venues down the side, the chosen one's field in a table. */
+  function bunkerPlaceView() {
+    var vs = CF.betting.venues(), cur = ui.bunkVenue;
+    var sel = null; vs.forEach(function (v) { if (v.id === cur) sel = v; });
+    if (!sel) { vs.forEach(function (v) { if (!sel && CF.betting.isOpen(v)) sel = v; }); }
+    if (!sel) sel = vs[0];
+
+    var list = vs.map(function (v) {
+      var open = CF.betting.isOpen(v);
+      return '<div class="bv' + (v.id === sel.id ? " on" : "") + (open ? "" : " off") + '"' +
+        (open ? ' data-act="bunk-venue" data-venue="' + v.id + '"' : "") + ">" +
+        '<div class="bv-name">' + esc(v.name) + "</div>" +
+        '<div class="bv-sub">' + (open ? esc(v.blurb)
+          : "Opens at Stealing <b>" + v.lvl + "</b> — you are <b>" + fmt(CF.betting.stealLevel()) + "</b>") + "</div></div>";
+    }).join("");
+
+    if (!CF.betting.isOpen(sel)) {
+      return '<div class="bunk-grid"><div class="bunk-venues">' + list + "</div>" +
+        '<div class="bunk-main"><div class="ll-box">The ' + esc(sel.name) +
+        " only takes bets from Stealing level <b>" + sel.lvl + "</b> up!</div></div></div>";
+    }
+
+    var rows = sel.runners.map(function (r, i) {
+      var on = String(ui.bunkPick) === String(i);
+      return '<tr class="brow' + (on ? " on" : "") + '" data-act="bunk-pick" data-i="' + i + '">' +
+        '<td class="rad"><span class="radio' + (on ? " on" : "") + '"></span></td>' +
+        "<td>" + esc(r.name) + "</td>" +
+        '<td class="c"><b>' + CF.betting.oddsFor(r).toFixed(2) + "</b> &times;</td>" +
+        '<td class="c pays" id="bunkPay' + i + '">pays <b>' +
+          fmt(Math.floor((parseInt(ui.bunkStake, 10) || sel.minBet) * CF.betting.oddsFor(r))) + "</b></td></tr>";
+    }).join("");
+
+    var stake = ui.bunkStake != null ? ui.bunkStake : String(sel.minBet);
+    return '<div class="bunk-grid"><div class="bunk-venues">' + list + "</div>" +
+      '<div class="bunk-main">' +
+        '<div class="bar2">' + esc(sel.name) + "</div>" +
+        '<p class="bunk-blurb">' + esc(sel.blurb) + "</p>" +
+        '<table class="mktab bunk-field"><tr><th></th><th>Who you back</th><th class="c">Odds</th><th class="c">If it wins</th></tr>' +
+        rows + "</table>" +
+        '<div class="bunk-stakebar">Stake: <input type="number" id="bunkStake" data-role="bunkstake" min="' +
+          sel.minBet + '" max="' + sel.maxBet + '" value="' + esc(stake) + '"> CC ' +
+          '<span class="bunk-lim">(' + fmt(sel.minBet) + " &ndash; " + fmt(sel.maxBet) + ")</span></div>" +
+        '<div class="cbtn"><button class="btn go" data-act="bunk-place">Place the bet</button></div>' +
+        '<p class="acc-note">You have <b>' + fmt(CF.state.player.money) + "</b> CC.</p>" +
+      "</div></div>";
+  }
+
+  /* Tab 2 — the race itself, one bar per runner, redrawn every second. */
+  function bunkerActiveView() {
+    var a = CF.betting.active();
+    if (!a) return '<div class="bunk-empty">You do not have any active bets.</div>';
+    var v = CF.betting.venue(a.venue), pos = CF.betting.positions();
+    var rows = v.runners.map(function (r, i) {
+      var mine = i === a.runner, won = a.settled && i === a.winner;
+      return '<div class="brace' + (mine ? " mine" : "") + (won ? " won" : "") + '">' +
+        '<div class="br-name">' + esc(r.name) + (mine ? ' <span class="br-tag">your pick</span>' : "") + "</div>" +
+        '<div class="br-track"><i id="brBar' + i + '" style="width:' + pos[i] + '%"></i></div>' +
+        '<div class="br-odds">' + CF.betting.oddsFor(r).toFixed(2) + "&times;</div></div>";
+    }).join("");
+
+    var head, foot;
+    if (!a.settled) {
+      head = '<div class="bunk-live" id="bunkLive">Leading: <b>' + esc(CF.betting.leader()) + "</b></div>";
+      foot = '<div class="cbtn"><button class="btn" data-act="bunk-skip">Skip to the result</button></div>';
+    } else if (a.won) {
+      head = '<div class="bunk-res win"><b>' + esc(v.runners[a.winner].name) + "</b> came in. You won <b>" +
+        fmt(a.payout) + "</b> CC.</div>";
+      foot = '<div class="cbtn"><button class="btn go" data-act="bunk-collect">Bet again</button></div>';
+    } else {
+      head = '<div class="bunk-res lose"><b>' + esc(v.runners[a.winner].name) + "</b> came in. Your <b>" +
+        fmt(a.stake) + "</b> CC is gone.</div>";
+      foot = '<div class="cbtn"><button class="btn" data-act="bunk-collect">Bet again</button></div>';
+    }
+    return '<div class="bunk-main wide">' +
+      '<div class="bar2">' + esc(v.name) + "</div>" + head +
+      '<div class="bunk-slip">Backing <b>' + esc(v.runners[a.runner].name) + "</b> for <b>" +
+        fmt(a.stake) + "</b> CC at <b>" + a.odds.toFixed(2) + "</b>&times;</div>" +
+      '<div class="bunk-races">' + rows + "</div>" + foot + "</div>";
+  }
+
+  /* Tab 3 — the last ten slips, newest first. */
+  function bunkerHistoryView() {
+    var h = CF.betting.history();
+    if (!h.length) return '<div class="bunk-empty">You have not settled any bets yet.</div>';
+    var t = CF.betting.historyTotals();
+    var rows = h.map(function (b) {
+      return "<tr>" +
+        "<td>" + esc(b.venue) + "</td>" +
+        "<td>" + esc(b.runner) + "</td>" +
+        "<td>" + esc(b.winner) + "</td>" +
+        '<td class="c">' + fmt(b.stake) + "</td>" +
+        '<td class="c">' + b.odds.toFixed(2) + "&times;</td>" +
+        '<td class="c ' + (b.won ? "g-yes" : "g-no") + '">' + (b.won ? "WON" : "lost") + "</td>" +
+        '<td class="c ' + (b.net >= 0 ? "g-yes" : "g-no") + '">' + (b.net >= 0 ? "+" : "&minus;") + fmt(Math.abs(b.net)) + "</td></tr>";
+    }).join("");
+    return '<div class="bunk-main wide">' +
+      '<table class="mktab bunk-hist"><tr><th>Where</th><th>You backed</th><th>Came in</th>' +
+      '<th class="c">Stake</th><th class="c">Odds</th><th class="c">Result</th><th class="c">Net</th></tr>' +
+      rows + "</table>" +
+      '<p class="acc-note">Last <b>' + h.length + "</b> bet" + (h.length === 1 ? "" : "s") +
+        ": <b>" + t.won + "</b> of <b>" + t.bets +
+        "</b> came in, <b>" + fmt(t.staked) + "</b> CC staked, <b>" + fmt(t.returned) + "</b> CC back " +
+        '(<b class="' + (t.net >= 0 ? "g-yes" : "g-no") + '">' + (t.net >= 0 ? "+" : "&minus;") +
+        fmt(Math.abs(t.net)) + "</b> CC).</p></div>";
+  }
+
+  function bunkerPanel() {
+    var tab = bunkerTab();
+    return '<div class="bunker">' +
+      '<div class="bar2">Betting Bunker</div>' + bunkerNav() +
+      '<div id="bunkNotice" class="notice-slot">' + bunkerNoticeHtml() + "</div>" +
+      (tab === "active" ? bunkerActiveView() : tab === "history" ? bunkerHistoryView() : bunkerPlaceView()) +
       "</div>";
   }
 
@@ -2729,7 +3135,7 @@
       Math.floor((l % 3600) / 60) + "min</b>";
   }
 
-  /* The Botanical Garden panel on the account overview — one line per thing the
+  /* The Garden panel on the account overview — one line per thing the
    * garden is waiting on, each jumping to the tab that handles it. */
   function gardenAccRows() {
     CF.garden.settlePlots();
@@ -2774,9 +3180,17 @@
 
   /* A stealing-gear bar. Both fill by perUpdate.*Gear at every update, so these
    * read live rather than sitting at the reference's frozen numbers. */
+  /* A label / bar / value row. Split into three cells so the bars line up down
+     the column instead of each row placing its own bar wherever its label
+     happens to end. Pair with the .barline class on the row. */
+  function barLine(label, val, max) {
+    var v = Math.max(0, Math.min(max, val || 0));
+    return '<span class="bl-lbl">' + esc(label) + ":</span>" +
+      '<span class="bl-bar"><span class="ebar"><i style="width:' + (v / max * 100) + '%"></i></span></span>' +
+      '<span class="bl-val">' + fmt(v) + "/" + fmt(max) + "</span>";
+  }
   function gearLine(label, val) {
-    var max = CF.ruleset.perUpdate.gearMax, v = Math.max(0, Math.min(max, val || 0));
-    return esc(label) + ': <span class="ebar"><i style="width:' + (v / max * 100) + '%"></i></span> ' + fmt(v) + "/" + fmt(max);
+    return barLine(label, val, CF.ruleset.perUpdate.gearMax);
   }
 
   function renderAccount() {
@@ -2784,8 +3198,9 @@
     function box(title, rows) {
       return '<div class="accbox"><div class="bar">' + title + "</div>" +
         rows.map(function (r) {
-          if (typeof r === "string") return '<div class="accrow">' + r + "</div>";
-          return '<div class="accrow go" data-act="' + r.act + '"' +
+          if (typeof r === "string") return '<div class="accrow' + (/bl-lbl/.test(r) ? " barline" : "") + '">' + r + "</div>";
+          if (!r) return "";                    // rows can opt out by returning null
+          return '<div class="accrow go' + (/bl-lbl/.test(r.html) ? " barline" : "") + '" data-act="' + r.act + '"' +
             (r.fac ? ' data-fac="' + r.fac + '"' : "") + (r.tab ? ' data-tab="' + r.tab + '"' : "") + ">" + r.html + "</div>";
         }).join("") + "</div>";
     }
@@ -2818,23 +3233,39 @@
           { act: "acc-sports", fac: "shop",
             html: steroidLeft > 0 ? 'You can buy steroids in the store: <b id="accSteroid">' + hms(steroidLeft / 1000) + "</b>"
                                   : "You can buy steroids in the store <b>NOW</b> !" },
-          { act: "acc-sports", fac: "gym", html: "Your power is <b>" + fmt(CF.sports.power().level) + "</b>, endurance <b>" + fmt(CF.sports.durability().level) + "</b>" }]) +
-        (showGarden ? box("Botanical Garden information", gardenAccRows()) : "") +
+          { act: "acc-sports", fac: "gym", html: "Your power is <b>" + fmt(CF.sports.power().level) + "</b>, endurance <b>" + fmt(CF.sports.endurance().level) + "</b>" }]) +
+        (showGarden ? box("Garden information", gardenAccRows()) : "") +
       "</div><div>" +
-        (B.houseSewage ? box("House and sewage info", [
-          gearLine("House gear", CF.state.houseGear),
-          gearLine("Sewage gear", CF.state.sewageGear)]) : "") +
+        (B.houseSewer ? box("Villas and sewer information", [
+          /* Both rows go to the map and leave you where you actually were —
+             standing in a tunnel and clicking "Villa moves" should not haul you
+             up to the street, and vice versa. */
+          { act: "go-houses", html: gearLine("Villa moves", CF.state.houseGear) },
+          { act: "go-houses", html: gearLine("Sewer moves", CF.state.sewerGear) }
+        ].concat(
+          // an empty backpack is not news — the row only earns its place with something in it
+          CF.houses.items() > 0
+            ? [{ act: "go-houses", html: "You have <b>" + fmt(CF.houses.items()) + "</b> stolen items in your backpack" }]
+            : []
+        )) : "") +
         (B.hospital ? box("Hospital information", [
-          "The hospital is currently NOT being upgraded.",
-          "The hospital's debt to staff is <b>0</b> CC",
-          "<b>0</b> buses waiting for commands",
-          "If you wish, you can upgrade one bed NOW!"]) : "") +
+          { act: "go-hospital", html: CF.hospital.hurt()
+              ? "Your endurance is <b>" + fmt(CF.hospital.endurance()) + "</b> of <b>" +
+                fmt(CF.hospital.maxEndurance()) + "</b> — the hospital will treat you"
+              : "Your endurance is full at <b>" + fmt(CF.hospital.maxEndurance()) + "</b>" },
+          { act: "go-hospital", html: "Treatment costs <b>" + fmt(CF.hospital.price()) +
+              "</b> CC, or one of your <b>" + fmt(CF.hospital.kits()) + "</b> first aid kits" }]) : "") +
         box("Other information", [
           { act: "acc-streets", html: "Your drug belt holds <b>" + fmt(CF.chemist.beltCap()) + "</b> g (<b>" + fmt(CF.chemist.beltUsed()) + "</b> g used)" },
-          { act: "acc-house", html: "Your house is level <b>" + fmt(CF.state.player.houseLevel || 0) + "</b>" },
-          { act: "go-harbor", html: harborRefitLine() },
-          { act: "go-harbor", html: harborTripLine() }
+          { act: "acc-house", html: "Your house is level <b>" + fmt(CF.state.player.houseLevel || 0) + "</b>" }
         ].concat(
+          /* Without a vessel both harbour lines say the same thing twice ("you
+             don't have one" / "the fisherman has one for sale"), so until you
+             own a boat there is only the one line worth printing. */
+          CF.harbor.owned()
+            ? [{ act: "go-harbor", html: harborRefitLine() }, { act: "go-harbor", html: harborTripLine() }]
+            : [{ act: "go-harbor", html: "The old fisherman still has a ship for sale" }]
+        ).concat(
           B.bankItems         ? ["You can maintain <b>5</b> more bank items"] : [],
           B.casinoCoupons     ? ["You have <b>24</b> more casino coupons"] : [],
           B.marketHandicrafts ? ["You can still buy <b>100,000</b> handicrafts at the market"] : [],
@@ -2891,7 +3322,7 @@
     } else if (ui.gardenHelpOpen) {
       $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal">' +
         '<button class="modal-x" data-act="garden-help-close" title="Close">&#10005;</button>' +
-        '<div class="bar">Stealing from the botanical garden</div><div class="modal-body">' + gardenHelpBody() + "</div></div></div>";
+        '<div class="bar">Stealing from the garden</div><div class="modal-body">' + gardenHelpBody() + "</div></div></div>";
     } else if (ui.chemHelpOpen) {
       $("modalHost").innerHTML = '<div class="modal-wrap"><div class="modal">' +
         '<button class="modal-x" data-act="chem-help-close" title="Close">&#10005;</button>' +
@@ -2946,11 +3377,11 @@
           "<p>You start with nothing. No house, every skill at level <b>1</b>, and a tavern job you have not taken " +
           "yet. Everything else you build.</p>" +
           gSteps([
-            "<b>Work the tavern.</b> It pays money and Bartending levels, and at the start it is the only income you have.",
+            "<b>Work the tavern.</b> It pays money and Barkeeping levels, and at the start it is the only income you have.",
             "<b>Build a house.</b> The first level needs <b>" + h.firstLevelSkill + " " + h.firstLevelReq +
             "</b>, and every level after that needs <b>Crafting of level &times; " + h.craftLevelsPerHouseLevel + "</b>.",
             "<b>Every house level opens a room</b>, and every room teaches a new trade. The house is the spine of the game.",
-            "<b>Places around town open the same way.</b> Slum at house <b>" + r.slum + "</b>, Botanical garden <b>" +
+            "<b>Places around town open the same way.</b> Slum at house <b>" + r.slum + "</b>, Garden <b>" +
             r.garden + "</b>, Racing complex <b>" + r.racing + "</b>, Casino <b>" + r.casino + "</b>."]) +
           "<p>The trades feed each other rather than standing alone. The garden grows herbs the medicine laboratory " +
           "needs, the harbor lands fish the canteen cooks, and the crafts room makes the syringes that finish a first " +
@@ -2968,7 +3399,7 @@
           "<p>Every update:</p>" +
           gList([
             "your hand energy goes up <b>+" + u.handEnergy + "</b>, to a maximum of " + fmt(CF.ruleset.sports.handEnergyMax),
-            "house gear and sewage gear each go up <b>+" + u.houseGear + "</b>, to a maximum of " + u.gearMax,
+            "villa gear and sewer gear each go up <b>+" + u.houseGear + "</b>, to a maximum of " + u.gearMax,
             "the garden's watering allowance comes back, <b>" + g.waterPerHour + "</b> plants an hour, and moisture drops a point"]) +
           "<p><b>The tavern runs on its own faster clock.</b> Customers arrive every <b>" + mins + " minutes</b>, so " +
           "you get " + Math.round(3600 / CF.ruleset.tavernIntervalSec) + " waves of trade between one update and the next.</p>" +
@@ -2987,7 +3418,7 @@
           "<p>A room opens at the house level matching its number:</p>" +
           '<table class="g-tab"><tr><th>Level</th><th>Room</th><th>Trains</th><th>Yours</th></tr>' +
           [[1, "Crafts room", "Crafting"], [2, "Drug lab", "Chemist"], [3, "Garage", "not built yet"],
-           [5, "Medicine laboratory", "Medical science"], [6, "Blacksmith", "Blacksmithing"]].map(function (r) {
+           [5, "Medicine laboratory", "Medical science"], [6, "Blacksmith", "Smithing"]].map(function (r) {
             var have = (CF.state.player.houseLevel || 0) >= r[0];
             return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td><td>" + r[2] +
               '</td><td class="' + (have ? "g-yes" : "g-no") + '">' + (have ? "open" : "locked") + "</td></tr>";
@@ -3032,20 +3463,20 @@
     ] },
 
     { group: "Trades", items: [
-      { id: "Bartending", name: "Bartending", body: function () {
+      { id: "Barkeeping", name: "Barkeeping", body: function () {
         var t = CF.ruleset.tavernPurchase, mins = Math.round(CF.ruleset.tavernIntervalSec / 60);
-        return gTitle("Bartending") +
+        return gTitle("Barkeeping") +
           "<p>Your first trade, and at the start your only income. Trained at the <b>Tavern</b>.</p>" +
           gSteps([
             "<b>Buy raw materials.</b> The price scales with your reputation.",
             "<b>Press them into raw juice</b>, then <b>mix</b> juice and materials into finished drinks.",
             "<b>Open the tavern.</b> Customers arrive every <b>" + mins + " minutes</b> and buy on their own, so you " +
-            "earn money and Bartending points without clicking anything.",
+            "earn money and Barkeeping points without clicking anything.",
             "<b>Keep it stocked.</b> Customers who find no drink leave unsatisfied, and your reputation <b>falls</b>."]) +
           "<p><b>Reputation</b> is the dial that matters. It alone decides how many customers turn up, and serving " +
           "them raises it further, so a well stocked tavern speeds up on its own. Your warehouses grow with your " +
-          "level too, so the higher your Bartending the more materials and juice you can hold at once.</p>" +
-          "<p>At <b>Bartending " + t.reqDrinkMaster + "</b> and <b>" + fmt(t.priceCC) + " CC</b> you can buy the " +
+          "level too, so the higher your Barkeeping the more materials and juice you can hold at once.</p>" +
+          "<p>At <b>Barkeeping " + t.reqDrinkMaster + "</b> and <b>" + fmt(t.priceCC) + " CC</b> you can buy the " +
           "tavern outright. That opens the second floor, the <b>Canteen</b>, and with it the Cooking skill.</p>";
       } },
       { id: "Crafting", name: "Crafting", body: function () {
@@ -3064,8 +3495,8 @@
           "<p>Crafted goods are not only for selling. The syringes and needle packs that finish a first aid kit come " +
           "from here, not from the medicine laboratory.</p>";
       } },
-      { id: "Blacksmithing", name: "Blacksmithing", body: function () {
-        return gTitle("Blacksmithing") +
+      { id: "Smithing", name: "Smithing", body: function () {
+        return gTitle("Smithing") +
           "<p>The <b>Blacksmith</b>, at house level 6.</p>" +
           gList([
             "<b>Anvil.</b> Forge weapons. Upgrading it unlocks better ones and lets you work more at once.",
@@ -3079,14 +3510,28 @@
       { id: "Medical science", name: "Medical science", body: function () { return gTitle("Medical science") + medHelpBody(); } },
       { id: "Gardening", name: "Gardening", body: function () { return gTitle("Gardening") + edHelpBody(); } },
       { id: "Stealing", name: "Stealing", body: function () { return gTitle("Stealing") + gardenHelpBody(); } },
+      { id: "Weapon handling", name: "Weapon handling", body: function () {
+        var wh = CF.houses.weaponHandling();
+        return gTitle("Weapon handling") +
+          "<p>What you learn by fighting, and the only skill the <a data-act=\"guide-pick\" data-id=\"sewer\">sewer</a> " +
+          "trains. You are level <b>" + fmt(wh.level) + "</b>, <b>" + fmt(wh.pointsToLevel) + "</b> points off the next.</p>" +
+          gSteps([
+            "<b>Kill things in the tunnels.</b> Every win pays points, and a tougher opponent pays far more than " +
+            "a weak one, so the way up is to fight the hardest thing you can reliably beat.",
+            "<b>It gates how deep you can go.</b> Each level down the sewer asks for more of it.",
+            "<b>It is most of your damage.</b> Endurance and the body stats help, but weapon handling is what " +
+            "decides whether a fight is worth taking."]) +
+          '<p class="g-note">Lose a fight and your endurance is emptied, which costs you a trip to the hospital. ' +
+          "Read the opponent's level before you commit.</p>";
+      } },
     ] },
 
     { group: "Body", items: [
-      { id: "Durability", name: "Durability", body: function () {
+      { id: "Endurance", name: "Endurance", body: function () {
         var rows = CF.runningOptions.map(function (o) {
           return "<tr><td>" + o.hours + " h</td><td>" + o.points + "</td><td>" + o.boots + "</td></tr>";
         }).join("");
-        return gTitle("Durability") +
+        return gTitle("Endurance") +
           "<p>Trained at the <b>Forest Trail</b>, which is open to everyone from the start with no pass and no entry " +
           "fee. Pick how long to run and wait for it.</p>" +
           '<table class="g-tab"><tr><th>Run</th><th>Points</th><th>Boots</th></tr>' + rows + "</table>" +
@@ -3096,18 +3541,18 @@
           "<p><b>Steroids double the points</b> of a run. Stopping early forfeits the boots and the steroid, with no " +
           "refund.</p>" +
           "<p>The hours are counted in updates, so a one hour run started at 16:30 ends at 17:00.</p>" +
-          "<p>Durability is worth pushing early. The <b>Gym pass</b> asks for level <b>" +
+          "<p>Endurance is worth pushing early. The <b>Gym pass</b> asks for level <b>" +
           (function () { var n = 30; CF.sportsShop.forEach(function (x) { if (x.pass === "gym") n = x.req.level; }); return n; })() +
-          "</b>, which makes it the gate on training Power at all.</p>";
+          "</b>, which makes it the gate on training Strength at all.</p>";
       } },
-      { id: "Power", name: "Power", body: function () {
+      { id: "Strength", name: "Strength", body: function () {
         var s = CF.ruleset.sports, u = CF.ruleset.perUpdate;
         var rows = CF.gymLifts.map(function (l) {
           return "<tr><td>" + esc(l.label) + "</td><td>" + l.energy + "</td><td>" + fmt(l.points) + "</td><td>" +
             (l.points / l.energy).toFixed(0) + "</td></tr>";
         }).join("");
-        return gTitle("Power") +
-          "<p>Trained at the <b>Gym</b>, which needs a pass bought at the Sports shop at Durability 30.</p>" +
+        return gTitle("Strength") +
+          "<p>Trained at the <b>Gym</b>, which needs a pass bought at the Sports shop at Endurance 30.</p>" +
           '<table class="g-tab"><tr><th>Lift</th><th>Energy</th><th>Points</th><th>Per energy</th></tr>' + rows + "</table>" +
           "<p>Look at the last column. <b>Heavier lifts pay more in total but less per unit of energy.</b> Energy is " +
           "your real bottleneck, so the lightest lift is the most efficient use of it.</p>" +
@@ -3117,21 +3562,20 @@
       } },
       { id: "Fighting", name: "Fighting", body: function () {
         return gTitle("Fighting") +
-          "<p><b>Fighting is never trained directly.</b> It is the average of your six body stats: Speed, Power, " +
-          "Durability, Protection, Skill and Weapon handling. It moves only when one of those moves.</p>" +
+          "<p><b>Fighting is never trained directly.</b> It is the average of your six body stats: Speed, Strength, " +
+          "Endurance, Defence, Dexterity and Weapon handling. It moves only when one of those moves.</p>" +
           "<p>Yours is <b>" + fightingValue() + "</b>. Because it is an average, the cheapest way to raise it is " +
           "whichever body stat is currently lowest, not whichever is easiest to train.</p>";
       } },
-      { id: "Speed", name: "Speed", soon: "Speed is trained at the <b>Stadium</b>. The entry ticket is already on sale at the Sports shop for anyone at Power 20 or above, but the training itself is not built yet." },
-      { id: "Skill", name: "Skill", soon: "Skill is trained at the <b>Boxing Hall</b>. The pass is already on sale at the Sports shop for anyone at Speed 15 or above, but the training itself is not built yet." },
-      { id: "Protection", name: "Protection", soon: "Protection is trained at the <b>Sports complex</b> alongside Skill. Not built yet." },
-      { id: "Weapon handling", name: "Weapon handling", soon: "Weapon handling rises by using forged weapons in combat. Combat is not built yet." },
+      { id: "Speed", name: "Speed", soon: "Speed is trained at the <b>Stadium</b>. The entry ticket is already on sale at the Sports shop for anyone at Strength 20 or above, but the training itself is not built yet." },
+      { id: "Dexterity", name: "Dexterity", soon: "Dexterity is trained at the <b>Boxing Hall</b>. The pass is already on sale at the Sports shop for anyone at Speed 15 or above, but the training itself is not built yet." },
+      { id: "Defence", name: "Defence", soon: "Defence is trained at the <b>Sports complex</b> alongside Dexterity. Not built yet." },
     ] },
 
     { group: "Around town", items: [
-      { id: "garden", name: "Botanical garden", body: function () {
+      { id: "garden", name: "Garden", body: function () {
         var g = CF.ruleset.garden;
-        return gTitle("Botanical garden") +
+        return gTitle("Garden") +
           "<p>Needs house level <b>" + CF.ruleset.locationHouseReq.garden + "</b>, and you have to claim <b>[Become a " +
           "gardener]</b>, which additionally wants the tavern and house level <b>" + g.gardenerHouseLevel + "</b>.</p>" +
           gList([
@@ -3147,7 +3591,7 @@
       { id: "canteen", name: "Tavern &amp; Canteen", body: function () {
         var c = CF.ruleset.canteen;
         return gTitle("Tavern &amp; Canteen") +
-          "<p>The tavern is where Bartending happens. Buying it (see <a data-act=\"guide-pick\" data-id=\"Bartending\">Bartending</a>) " +
+          "<p>The tavern is where Barkeeping happens. Buying it (see <a data-act=\"guide-pick\" data-id=\"Barkeeping\">Barkeeping</a>) " +
           "opens the <b>Canteen</b> upstairs.</p>" +
           "<p>The canteen works backwards from most kitchens. <b>You choose a liquid first</b>, fill a <b>" +
           fmt(c.containerMax) + " L</b> container, and that is what gives you the raw materials. Only then do you " +
@@ -3158,8 +3602,8 @@
             "same one again simply adds to its time.",
             "Both tables have a <b>recipe guide</b> button listing every dish and exactly what goes into it."]);
       } },
-      { id: "harbor", name: "Harbor", body: function () {
-        return gTitle("Harbor") +
+      { id: "harbor", name: "Seaport", body: function () {
+        return gTitle("Seaport") +
           "<p>Where fish comes from. Buy a ship, hire a fishing crew and a defence crew, then send it out. It comes " +
           "back with the catch the canteen's fish dishes need.</p>" +
           gList([
@@ -3182,6 +3626,99 @@
           "<p>Trading with other players is <b>excluded</b> from this build, so the market only ever trades with the " +
           "game itself.</p>";
       } },
+      { id: "houses", name: "Villas and sewer", body: function () {
+        var rs = CF.ruleset.houseSteal, u = CF.ruleset.perUpdate;
+        var rows = CF.houseLoot.map(function (l) {
+          return "<tr><td>" + esc(l.label.charAt(0).toUpperCase() + l.label.slice(1)) + "</td><td>" +
+            Math.round(l.w * 100) + "%</td></tr>";
+        }).join("");
+        var M = CF.houseMap;
+        return gTitle("Villas and sewer") +
+          "<p>A district of <b>" + (M.blocksX * M.blocksY) + "</b> blocks you work on foot. Walk up to a house, rob " +
+          "it, move on. It is the other half of <a data-act=\"guide-pick\" data-id=\"Stealing\">Stealing</a>, " +
+          "alongside the garden.</p>" +
+          gSteps([
+            "<b>Click a house</b> and take <b>Walk here and steal</b> — it does both in one go. Plain <b>Walk here</b> " +
+            "is underneath if you only want to move.",
+            "<b>Walking spends moves</b>, one a tile. Houses next to each other are one move apart, so working " +
+            "along a row is cheap. You hold <b>" + u.gearMax + "</b> moves at most.",
+            "<b>Robbing itself is free</b>, but a house is only good once and turns grey when you have been through it.",
+            "<b>Moves come back +" + u.houseGear + " an update</b>, and every house goes back to worth robbing at the " +
+            "same moment. If the district looks grey, that is what you are waiting for."]) +
+          "<p>The map is bigger than the window: you stay in the middle and the streets slide past as you walk. " +
+          "Dark ground past the last street is simply the edge of the district.</p>" +
+          "<p>What you come away with:</p>" +
+          '<table class="g-tab"><tr><th>Find</th><th>Chance</th></tr>' + rows + "</table>" +
+          "<p>Money is the common case, <b>" + fmt(rs.minCC) + "</b> to <b>" + fmt(rs.maxCC) + "</b> CC a house, " +
+          "but it is not really the point. The <b>stolen items</b> are: they are what the bank's reputation gets " +
+          "built from. Every job pays <b>" + rs.stealPoints + "</b> steal points either way.</p>" +
+          "<p>Click any road tile to <b>climb down into the sewer</b>, which has its own guide page.</p>" +
+          '<p class="g-note">Stolen items and fighting equipment have nowhere to go until the bank and the ' +
+          "fighting side exist, so for now they are counted and kept.</p>";
+      } },
+      { id: "sewer", name: "The sewer", body: function () {
+        var u = CF.ruleset.perUpdate, sr = CF.ruleset.sewer, req = CF.sewer.reqWeapon || {};
+        var rows = [];
+        for (var L = 2; L <= CF.sewer.maxLevel; L++) {
+          var need = req[L] || 0, have = CF.houses.weaponHandling().level;
+          rows.push("<tr><td>Level " + L + "</td><td>" + (need ? "Weapon handling " + need : "&mdash;") +
+            '</td><td class="' + (have >= need ? "g-yes" : "g-no") + '">' +
+            (have >= need ? "open" : "you are " + have) + "</td></tr>");
+        }
+        return gTitle("The sewer") +
+          "<p>Under the villas, reached by clicking <b>any road tile</b> on the street map. Six levels of brick " +
+          "tunnel, laid out on the same grid as the streets above, so the way down is the way you already know. " +
+          "This is where <a data-act=\"guide-pick\" data-id=\"Weapon handling\">Weapon handling</a> is trained.</p>" +
+          gSteps([
+            "<b>You can climb from any tunnel tile</b>, up or down. The ladders you see are only there to mark the " +
+            "obvious spots, they are not doors you have to find.",
+            "<b>You keep your position</b> going between levels. Stand still, climb down, and you are on the same " +
+            "square one floor lower, so the levels stack and you can navigate by them.",
+            "<b>Walking spends sewer moves</b>, one a tile, up to <b>" + u.gearMax + "</b>, topped up <b>+" +
+            u.sewerGear + " an update</b>. The update also puts fresh company on the map.",
+            "<b>Fighting is the point.</b> Kill something and you take weapon handling points, and about one in " +
+            "five leaves a <b>chest</b> behind. Nothing is lying around to be picked up: a chest has to be dropped."]) +
+          '<p class="g-note">Endurance is all or nothing down here. <b>Winning a fight costs you nothing.</b> ' +
+          "<b>Losing one empties it</b>, and only a hospital will put it back. So the skill is reading what you " +
+          "are looking at and walking away from the ones you cannot take, not counting how many you can afford.</p>" +
+          "<p>The deeper you go the worse the company and the better the pay. Getting down is gated:</p>" +
+          '<table class="g-tab"><tr><th>Depth</th><th>Needs</th><th>Yours</th></tr>' + rows.join("") + "</table>" +
+          "<p>Chests pay <b>" + fmt(sr.minCC) + "</b> CC and up, scaled by how deep you found them.</p>";
+      } },
+      { id: "hospital", name: "Hospital", body: function () {
+        return gTitle("Hospital") +
+          "<p>The place you go when the sewer has finished with you. Lose a fight down there and your endurance " +
+          "is emptied; nothing else in the game puts it back.</p>" +
+          gSteps([
+            "<b>Get treated for cash.</b> The fee rises steeply with how much endurance you have to restore, so " +
+            "the fitter you are the dearer it is to be put back together.",
+            "<b>Or use a first aid kit</b>, packed at the medicine laboratory from your own medicines. It costs no " +
+            "money at all, which makes the whole medicine chain worth running for its own sake."]) +
+          '<p class="g-note">Only the treatment desk is open. Running the hospital as a business — its level, the ' +
+          "wards, surgery, staff and books — is still to come, along with the extra medicinal beds it unlocks.</p>";
+      } },
+      { id: "bunker", name: "Betting Bunker", body: function () {
+        var vs = CF.betting.venues();
+        var rows = vs.map(function (v) {
+          var open = CF.betting.isOpen(v);
+          return "<tr><td>" + esc(v.name) + "</td><td>" + v.runners.length + "</td>" +
+            "<td>" + fmt(v.minBet) + " &ndash; " + fmt(v.maxBet) + "</td>" +
+            '<td class="' + (open ? "g-yes" : "g-no") + '">' + (open ? "open" : "Stealing " + v.lvl) + "</td></tr>";
+        }).join("");
+        return gTitle("Betting Bunker") +
+          "<p>In the <b>Slum</b>, behind a ticket from the Market. The bunker runs its own events and pays out in " +
+          "cash, so unlike the casino there is nothing to change into chips first.</p>" +
+          '<table class="g-tab"><tr><th>Venue</th><th>Runners</th><th>Stakes (CC)</th><th>Yours</th></tr>' + rows + "</table>" +
+          gSteps([
+            "<b>Pick a venue and a runner.</b> Shorter odds win more often and pay less, which is the whole trade.",
+            "<b>Set your stake</b> and place the bet. The table shows what each runner would pay you before you commit.",
+            "<b>Watch it run</b> on the Active bets tab. You can skip to the result; the outcome was already decided when you placed the bet, so skipping costs you nothing.",
+            "<b>Bet history</b> keeps your last <b>" + CF.ruleset.bettingBunker.historyMax + "</b> slips with what you staked and what came back."]) +
+          "<p>New venues open as your <b>Stealing</b> level climbs, and the deeper ones take bigger stakes and pay " +
+          "longer odds.</p>" +
+          "<p>Be clear-eyed about it: the bunker keeps a cut of everything staked, the same at every venue and on " +
+          "every runner. There is no soft spot to find. It is somewhere to spend money, not a way to earn it.</p>";
+      } },
       { id: "casino", name: "Casino", body: function () {
         var c = CF.ruleset.casino;
         return gTitle("Casino") +
@@ -3201,10 +3738,10 @@
           "<p>Five facilities. The <b>Sports shop</b> and <b>Forest Trail</b> are always open. The Gym, Stadium and " +
           "Boxing Hall each need a pass bought at the shop, and each pass has a stat requirement of its own.</p>" +
           gList([
-            "<b>Forest Trail</b> trains <a data-act=\"guide-pick\" data-id=\"Durability\">Durability</a>, and is open to everyone.",
-            "<b>Gym</b> trains <a data-act=\"guide-pick\" data-id=\"Power\">Power</a>, with a pass at Durability 30.",
-            "<b>Stadium</b> trains Speed, with a ticket at Power 20. The training is not built yet.",
-            "<b>Boxing Hall</b> trains Skill, with a pass at Speed 15. The training is not built yet.",
+            "<b>Forest Trail</b> trains <a data-act=\"guide-pick\" data-id=\"Endurance\">Endurance</a>, and is open to everyone.",
+            "<b>Gym</b> trains <a data-act=\"guide-pick\" data-id=\"Strength\">Strength</a>, with a pass at Endurance 30.",
+            "<b>Stadium</b> trains Speed, with a ticket at Strength 20. The training is not built yet.",
+            "<b>Boxing Hall</b> trains Dexterity, with a pass at Speed 15. The training is not built yet.",
             "<b>Sports shop</b> sells equipment, steroids and the passes themselves."]) +
           "<p>Equipment is <b>consumed by training</b>. Running spends boots, and lifting spends the belt and " +
           "wristbands, so budget for replacements and not just for the pass.</p>";
@@ -3213,8 +3750,6 @@
 
     { group: "Coming later", items: [
       { id: "Mining", name: "Mining", soon: "Mining will supply <b>Uranium</b> for the crafts room's furnaces and <b>Charcoal</b>, neither of which has any source at the moment. That is why a few of the later recipes cannot be finished yet. The account overview already has a Mining panel sitting there waiting for it." },
-      { id: "hospital", name: "Hospital", soon: "The hospital will treat patients using the first aid kits the medicine laboratory packs. It is also what unlocks <b>extra medicinal beds</b> in the garden beyond the first three." },
-      { id: "houseSewage", name: "House and sewage", soon: "A stealing location. The <b>house gear</b> and <b>sewage gear</b> bars on the account overview already fill up at every update, ready for whenever it arrives." },
       { id: "garage", name: "Garage", soon: "House room 3, for cars and spare parts. It is also what the Racing complex is waiting on, since racing needs both a garage and a car." },
       { id: "market", name: "Player market", soon: "<b>Deliberately excluded</b>, along with credits and VIP memberships. The market counters that remain all trade with the game rather than with other players." },
     ] },
@@ -3276,7 +3811,7 @@
         "earn <b>" + fmt(CF.medicine.kitPoints()) + "</b> a kit, and the packing table always shows your rate.</li>" +
       "<li>A kit sells for more the tougher and more skilled you are, so the same kit is worth steadily more over time.</li>" +
       "<li>Every level adds <b>+1%</b> to your doctors' success rate.</li>" +
-      "<li>Using a kit on yourself gives a temporary <b>+5% durability</b>.</li>" +
+      "<li>Using a kit on yourself gives a temporary <b>+5% endurance</b>.</li>" +
       "</ul><p class=\"acc-note\">The Hospital isn't built yet, so extra medicinal beds and the doctors who use your kits are still out of reach.</p></div>";
   }
   function gardenHelpBody() {
@@ -3298,7 +3833,7 @@
     return '<div class="chelp"><p>Turn cheap street narcotics into valuable processed drugs:</p>' +
       "<ol>" +
       '<li>Buy raw <b>narcotics</b> on the <b>Streets</b>. They land in your drug belt.</li>' +
-      '<li>Get <b>plants</b> from the Botanical garden, then press them in the <b>Juicer</b> for juice.</li>' +
+      '<li>Get <b>plants</b> from the Garden, then press them in the <b>Juicer</b> for juice.</li>' +
       '<li>In the <b>Drug lab</b>, pick a narcotic + its matching plant-juice + a quantity, then <b>Mix</b>. Each gram uses 1&nbsp;g narcotic + 1&nbsp;ml juice → 1&nbsp;g of the drug, and earns Chemist points.</li>' +
       '<li>Sell the processed drug back on the <b>Streets</b>. That is where the profit is.</li>' +
       "</ol>" +
@@ -3307,91 +3842,194 @@
   }
 
   /* -------------------------- Debug popup ------------------------------ */
-  var DBG_SKILLS = ["Bartending", "Crafting", "Blacksmithing", "Chemist", "Stealing", "Gardening", "Durability", "Power"];
+  /* Every skill that is REAL — one you can actually train somewhere. Keep this
+   * in step with the game: a skill missing here cannot be levelled for testing,
+   * which is how Cooking and Medical science went untestable for a while. */
+  var DBG_SKILLS = ["Barkeeping", "Crafting", "Smithing", "Chemist", "Stealing",
+                    "Gardening", "Cooking", "Medical science", "Endurance", "Strength"];
   function dbgSkillLevel(sk) {
-    return sk === "Bartending" ? CF.state.player.drinkMasterLevel
+    return sk === "Barkeeping" ? CF.state.player.drinkMasterLevel
          : sk === "Crafting" ? CF.craft.progress().level
-         : sk === "Blacksmithing" ? CF.blacksmith.forgingProgress().level
+         : sk === "Smithing" ? CF.blacksmith.forgingProgress().level
          : sk === "Chemist" ? CF.chemist.progress().level
          : sk === "Stealing" ? CF.garden.stealProgress().level
          : sk === "Gardening" ? CF.garden.gardenProgress().level
-         : sk === "Durability" ? CF.sports.durability().level
-         : sk === "Power" ? CF.sports.power().level : 1;
+         : sk === "Cooking" ? CF.canteen.progress().level
+         : sk === "Medical science" ? CF.medicine.progress().level
+         : sk === "Endurance" ? CF.sports.endurance().level
+         : sk === "Strength" ? CF.sports.power().level : 1;
   }
-  /* Two debug tabs: per-SKILL level/material tools, and a GENERAL sheet for the
-   * player-wide values (money, house level, tickets, belt, energy...). */
+
+  /* ---- Time travel ------------------------------------------------------
+   * The game is full of multi-hour clocks: 75-hour plants, a 24-hour ticket
+   * office, harbor refits, dish durations, the hourly update's payouts. Waiting
+   * them out is not testing. Rather than fake a global clock (which would mean
+   * threading a CF.now() through every file), this drags the stored timestamps
+   * BACKWARDS by the requested hours, which has the same effect and touches
+   * nothing outside this function.
+   *
+   * Every timestamp in the save is listed here on purpose. If you add a new
+   * timer anywhere, add it here too or time travel will silently skip it. */
+  function debugShiftTime(hours) {
+    var ms = hours * 3600000, s = CF.state, moved = 0;
+    function back(o, k) { if (o && typeof o[k] === "number" && o[k] > 0) { o[k] -= ms; moved++; } }
+
+    if (typeof s.updateSlot === "number") { s.updateSlot -= hours; moved++; }
+
+    var G = s.garden;
+    if (G) {
+      (G.plots || []).forEach(function (p) { back(p, "endsAt"); back(p, "wateredAt"); back(p, "pestAt"); });
+      (G.medBeds || []).forEach(function (b) { back(b, "endsAt"); });
+      back(G, "landBuyAt"); back(G, "ticketReopenAt");
+      G.waterHourSlot = -1;                       // this hour's watering allowance comes back
+    }
+    var S = s.sports;
+    if (S) { back(S.run, "endsAt"); back(S, "lastSteroidBuy"); back(S, "energyAt");
+             if (typeof S.energySlot === "number") { S.energySlot -= hours; moved++; } }
+    var H = s.harbor;
+    if (H) { back(H.refit, "endsAt"); back(H.trip, "endsAt"); }
+    var C = s.canteen;
+    if (C && C.menu) { back(C.menu.veg, "endsAt"); back(C.menu.fish, "endsAt"); }
+    if (s.betting && s.betting.active) back(s.betting.active, "at");
+
+    CF.settleUpdates();                           // pay the updates that just "passed"
+    if (CF.garden.settlePlots) CF.garden.settlePlots();
+    if (CF.sports.settleRun) CF.sports.settleRun();
+    return moved;
+  }
+  /* Three debug tabs. SKILLS levels a trade and stocks its inputs; PLAYER holds
+   * the account-wide numbers and the unlock switches; WORLD drives the clocks
+   * and the feature flags. Split three ways because the old two-tab sheet had
+   * become a single long scroll with unrelated things next to each other. */
+  function dbgNum(label, id, val, act, extra) {
+    return '<div class="field"><label>' + label + "</label>" +
+      '<div class="row"><input type="number" id="' + id + '" value="' + val + '"' + (extra || "") +
+      '><button class="btn" data-act="' + act + '">Set</button></div></div>';
+  }
+  function dbgToggle(label, on, act, what) {
+    return '<button class="btn dbg-tog' + (on ? " go" : "") + '" data-act="' + act + '"' +
+      (what ? ' data-what="' + esc(what) + '"' : "") + ">" + (on ? "☑ " : "☐ ") + label + "</button>";
+  }
   function debugBody() {
     var tab = ui.dbgTab || "skills";
+    var p = CF.state.player;
     var html = '<div class="dbg">' +
       // save/load/reset sit at the very top, above the tab switcher
       '<div class="dbg-save"><button class="btn" data-act="save">💾 Save</button> ' +
         '<button class="btn" data-act="load">📂 Load</button> ' +
         '<button class="btn warn" data-act="reset">♻ New account</button></div>' +
       '<div class="dbg-tabs">' +
-      '<button class="btn' + (tab === "skills" ? " go" : "") + '" data-act="dbg-tab" data-tab="skills">Skills</button> ' +
-      '<button class="btn' + (tab === "general" ? " go" : "") + '" data-act="dbg-tab" data-tab="general">General</button></div>';
+      ["skills", "player", "world"].map(function (t) {
+        return '<button class="btn' + (tab === t ? " go" : "") + '" data-act="dbg-tab" data-tab="' + t + '">' +
+          t.charAt(0).toUpperCase() + t.slice(1) + "</button>";
+      }).join(" ") + "</div>";
 
-    if (tab === "general") {
-      var p = CF.state.player, G = CF.state.garden, S = CF.state.sports;
-      function num(label, id, val, act, extra) {
-        return '<div class="field"><label>' + label + "</label>" +
-          '<div class="row"><input type="number" id="' + id + '" value="' + val + '"' + (extra || "") +
-          '><button class="btn" data-act="' + act + '">Set</button></div></div>';
-      }
-      html += num("Money (CC)", "dbgMoney", p.money, "dbg-set-money") +
-        num("Bank balance", "dbgBank", p.bank || 0, "dbg-set-bank") +
-        num("Fame (gates drug belts)", "dbgFame", p.fame || 0, "dbg-set-fame") +
-        num("House level (gates house rooms)", "dbgHouse", p.houseLevel || 0, "dbg-set-house", ' min="0" max="' + CF.ruleset.house.maxLevel + '"') +
-        num("Tavern reputation", "dbgRep", p.reputation, "dbg-set-rep", ' min="0"') +
-        num("Greenhouse tickets", "dbgTickets", G.tickets, "dbg-set-tickets", ' min="0"') +
-        num("Drug belt capacity (g)", "dbgBelt", CF.chemist.beltCap(), "dbg-set-belt", ' min="1"') +
-        num("Hand energy", "dbgEnergy", S.handEnergy || 0, "dbg-set-energy", ' min="0" max="' + CF.sports.maxHandEnergy() + '"') +
-        '<div class="cbtn"><button class="btn go" data-act="dbg-run-update">Run tavern update now</button></div>' +
-        '<div class="cbtn"><button class="btn" data-act="dbg-open-office">Open the ticket office now</button></div>' +
-        '<div class="cbtn"><button class="btn" data-act="dbg-clear-cooldowns">Clear steroid / run cooldowns</button></div>' +
-        '<div class="cbtn"><button class="btn go" data-act="dbg-late-game">Load the late-game profile</button></div>' +
-        '<p class="acc-note dbg-note">These write straight into the save — handy for jumping to a state without grinding.</p></div>';
+    /* ---------------- PLAYER ---------------- */
+    if (tab === "player" || tab === "general") {
+      var G = CF.state.garden, S = CF.state.sports;
+      html += dbgNum("Money (CC)", "dbgMoney", p.money, "dbg-set-money") +
+        dbgNum("Bank balance", "dbgBank", p.bank || 0, "dbg-set-bank") +
+        dbgNum("Casino tokens", "dbgTokens", p.tokens || 0, "dbg-set-tokens", ' min="0"') +
+        dbgNum("Fame (gates drug belts)", "dbgFame", p.fame || 0, "dbg-set-fame") +
+        dbgNum("House level (gates house rooms)", "dbgHouse", p.houseLevel || 0, "dbg-set-house", ' min="0" max="' + CF.ruleset.house.maxLevel + '"') +
+        dbgNum("Tavern reputation", "dbgRep", p.reputation, "dbg-set-rep", ' min="0"') +
+        dbgNum("Greenhouse tickets", "dbgTickets", G.tickets, "dbg-set-tickets", ' min="0"') +
+        dbgNum("Drug belt capacity (g)", "dbgBelt", CF.chemist.beltCap(), "dbg-set-belt", ' min="1"') +
+        dbgNum("Hand energy", "dbgEnergy", S.handEnergy || 0, "dbg-set-energy", ' min="0" max="' + CF.sports.maxHandEnergy() + '"') +
+        dbgNum("House gear", "dbgHouseGear", CF.state.houseGear || 0, "dbg-set-housegear", ' min="0" max="' + CF.ruleset.perUpdate.gearMax + '"') +
+        dbgNum("Sewer gear", "dbgSewerGear", CF.state.sewerGear || 0, "dbg-set-sewergear", ' min="0" max="' + CF.ruleset.perUpdate.gearMax + '"') +
+        '<div class="field"><label>Unlocks</label><div class="dbg-togs">' +
+          dbgToggle("Tavern job taken", !!p.tavernJobAccepted, "dbg-tog", "tavernJob") +
+          dbgToggle("Tavern owned (opens the Canteen)", !!p.tavernOwned, "dbg-tog", "tavernOwned") +
+          dbgToggle("Gardener claimed", !!G.isGardener, "dbg-tog", "gardener") +
+          dbgToggle("Fishing vessel owned", !!CF.state.harbor.owned, "dbg-tog", "ship") +
+        "</div></div>" +
+        '<div class="field"><label>Slum passes (the Betting Bunker needs one)</label><div class="dbg-togs">' +
+          CF.ruleset.slumPasses.map(function (sp) {
+            return dbgToggle(sp.area, !!CF.state.slumPasses[sp.id], "dbg-tog-pass", sp.id);
+          }).join("") + "</div></div>" +
+        '<p class="acc-note dbg-note">These write straight into the save. Clocks and feature flags are under <b>World</b>.</p></div>';
       return html;
     }
 
-    var sk = ui.dbgSkill || "Bartending";
-    html += '<div class="field"><label>Skill</label><select id="dbgSkill" data-role="dbgskill">' +
+    /* ---------------- WORLD ---------------- */
+    if (tab === "world") {
+      var B = CF.ruleset.built;
+      html += '<div class="field"><label>Clocks</label><div class="dbg-togs">' +
+          '<button class="btn go" data-act="dbg-run-update">Run tavern wave (' +
+            Math.round(CF.ruleset.tavernIntervalSec / 60) + " min)</button>" +
+          '<button class="btn go" data-act="dbg-world-update">Run world update (hourly)</button>' +
+        "</div></div>" +
+        '<div class="field"><label>Jump forward — ages every timer in the save at once</label><div class="dbg-togs">' +
+          [1, 6, 24, 72].map(function (h) {
+            return '<button class="btn" data-act="dbg-skip-time" data-h="' + h + '">+' + h + " h</button>";
+          }).join("") + "</div></div>" +
+        '<div class="field"><label>Shortcuts</label><div class="dbg-togs">' +
+          '<button class="btn" data-act="dbg-open-office">Open the ticket office</button>' +
+          '<button class="btn" data-act="dbg-clear-cooldowns">Clear steroid / run cooldowns</button>' +
+          '<button class="btn" data-act="dbg-finish-harbor">Finish harbor refit + trip</button>' +
+          '<button class="btn" data-act="dbg-clear-bets">Clear bet history</button>' +
+        "</div></div>" +
+        '<div class="field"><label>Villas and sewer</label><div class="dbg-togs">' +
+          '<button class="btn go" data-act="dbg-fill-moves">Refill moves (' + CF.ruleset.perUpdate.gearMax + ")</button>" +
+          '<button class="btn" data-act="dbg-unrob">Un-rob every house</button>' +
+          '<button class="btn warn" data-act="dbg-newdistrict">Generate a new district</button>' +
+          '<button class="btn" data-act="dbg-give-items">+10 stolen items</button>' +
+        "</div></div>" +
+        '<div class="field"><label>Warehouse capacity enforcement</label><div class="dbg-togs">' +
+          dbgToggle(CF.ruleset.enforceCapacity ? "ON — warehouses can fill up" : "OFF — no limits",
+                    CF.ruleset.enforceCapacity, "dbg-toggle-cap") + "</div></div>" +
+        '<div class="field"><label>Unbuilt systems — turn one on to preview its panels</label><div class="dbg-togs">' +
+          Object.keys(B).map(function (k) { return dbgToggle(k, B[k], "dbg-tog-built", k); }).join("") +
+        "</div></div>" +
+        '<div class="field"><label>Profiles</label><div class="dbg-togs">' +
+          '<button class="btn go" data-act="dbg-late-game">Load the late-game profile</button>' +
+          '<button class="btn" data-act="dbg-replay-intro">Replay the intro</button>' +
+        "</div></div>" +
+        '<p class="acc-note dbg-note">"Jump forward" drags every stored timer back by that many hours, so plants ' +
+          "grow, refits land, cooldowns lapse and the update pays out — without waiting.</p></div>";
+      return html;
+    }
+
+    /* ---------------- SKILLS ---------------- */
+    var sk = ui.dbgSkill || "Barkeeping";
+    html += '<div class="field"><label>Which skill</label><select id="dbgSkill" data-role="dbgskill">' +
         DBG_SKILLS.map(function (s) { return "<option" + (s === sk ? " selected" : "") + ">" + s + "</option>"; }).join("") + "</select></div>" +
       '<div class="field"><label>Level (sets the matching XP automatically)</label>' +
         '<div class="row"><input type="number" id="dbgLevel" min="1" value="' + dbgSkillLevel(sk) + '"><button class="btn" data-act="dbg-set-level">Set</button></div></div>' +
-      '<div class="cbtn"><button class="btn" data-act="dbg-unlimited">Unlimited materials</button></div>';
-    if (sk === "Bartending") {
-      // the warehouse caps are a tavern thing, so the toggle lives with Bartending
-      html += '<div class="field"><label>Warehouse capacity enforcement</label>' +
-        '<div class="row"><button class="btn' + (CF.ruleset.enforceCapacity ? " go" : "") + '" data-act="dbg-toggle-cap">' +
-        (CF.ruleset.enforceCapacity ? "ON — warehouses can fill up" : "OFF — no limits") + "</button></div></div>" +
-        '<div class="cbtn"><button class="btn go" data-act="dbg-run-update">Run update now</button></div>';
-    }
-    html += '<p class="acc-note">Setting a level rewrites the skill\'s lifetime XP to the exact amount that reaches it. "Unlimited materials" fills that skill\'s inputs for testing. Player-wide values live under <b>General</b>.</p></div>';
+      '<div class="field"><label>Stock</label><div class="dbg-togs">' +
+        '<button class="btn" data-act="dbg-unlimited">Unlimited materials for ' + esc(sk) + "</button>" +
+        '<button class="btn" data-act="dbg-stock-all">Stock every skill</button>' +
+      "</div></div>" +
+      '<p class="acc-note">Setting a level rewrites the skill\'s lifetime XP to the exact amount that reaches it. ' +
+        "Account-wide values are under <b>Player</b>, clocks under <b>World</b>.</p></div>";
     return html;
   }
   function dbgApplied(what) { CF.autosave(); renderSidebar(); renderPlace(); renderModal(); toast(what + " updated."); }
   function debugSetLevel(skill, level) {
     var p = CF.state.player;
     // skills on the universal curve
-    if (skill === "Bartending") { var xp = CF.formulas.xpToReachLevel(level); p.drinkMasterLevel = level; p.drinkMasterPoints = 0; p.dmLifetime = xp; }
+    if (skill === "Barkeeping") { var xp = CF.formulas.xpToReachLevel(level); p.drinkMasterLevel = level; p.drinkMasterPoints = 0; p.dmLifetime = xp; }
     else if (skill === "Crafting") { CF.state.craft.points = CF.formulas.xpToReachLevel(level); }
-    else if (skill === "Blacksmithing") { CF.state.blacksmith.forgingPoints = CF.formulas.xpToReachLevel(level); }
+    else if (skill === "Smithing") { CF.state.blacksmith.forgingPoints = CF.formulas.xpToReachLevel(level); }
     else if (skill === "Chemist") { CF.state.chemist.points = CF.formulas.xpToReachLevel(level); }
     // skills with their own curves
     else if (skill === "Stealing") { CF.state.garden.stealPoints = CF.formulas.xpToReachLevelFor("Stealing", level); }
     else if (skill === "Gardening") { CF.state.garden.gardenPoints = CF.formulas.xpToReachLevelFor("Gardening", level); }
-    else if (skill === "Durability") { CF.state.sports.durabilityPoints = CF.formulas.xpToReachLevelFor("Durability", level); p.durabilityCur = level; p.durabilityMax = level; }
-    else if (skill === "Power") { CF.state.sports.powerPoints = CF.formulas.xpToReachLevelFor("Power", level); }
+    else if (skill === "Endurance") { CF.state.sports.durabilityPoints = CF.formulas.xpToReachLevelFor("Endurance", level); p.durabilityCur = level; p.durabilityMax = level; }
+    else if (skill === "Strength") { CF.state.sports.powerPoints = CF.formulas.xpToReachLevelFor("Strength", level); }
+    // the two that were missing: both store LIFETIME points like the rest
+    else if (skill === "Cooking") { CF.state.canteen.cookPoints = CF.formulas.xpToReachLevelFor("Cooking", level); }
+    else if (skill === "Medical science") { CF.state.medicine.points = CF.formulas.xpToReachLevelFor("Medical science", level); }
   }
   function debugUnlimited(skill) {
     var BIG = 1e9;
-    if (skill === "Bartending") {
+    if (skill === "Barkeeping") {
       CF.materials.forEach(function (m) { CF.state.inv.materials[m] = BIG; });
       CF.rawJuices.forEach(function (j) { CF.state.inv.rawJuice[j] = BIG; });
     } else if (skill === "Crafting") {
       CF.craftMaterialOrder.forEach(function (k) { CF.state.craft.supplies[k] = BIG; });
-    } else if (skill === "Blacksmithing") {
+    } else if (skill === "Smithing") {
       ["Steel Alloy", "Titanium Alloy (1)", "Titanium Alloy (2)", "Titanium Alloy (3)", "Titanium Alloy (4)", "Enriched uranium"]
         .forEach(function (k) { CF.state.craft.made[k] = BIG; });
       CF.state.blacksmith.materials["Charcoal"] = BIG; CF.state.blacksmith.materials["TNT"] = BIG;
@@ -3404,9 +4042,21 @@
       CF.state.player.money = Math.max(CF.state.player.money, 1e9);
     } else if (skill === "Stealing" || skill === "Gardening") {
       CF.state.garden.tickets = 999;
-    } else if (skill === "Durability" || skill === "Power") {
+    } else if (skill === "Endurance" || skill === "Strength") {
       Object.keys(CF.state.sports.equipment).forEach(function (k) { CF.state.sports.equipment[k] = 99999; });
       CF.state.sports.handEnergy = CF.sports.maxHandEnergy();
+    } else if (skill === "Cooking") {
+      // the canteen needs liquids, dairy, fruit and fish before it can cook
+      var C = CF.state.canteen;
+      ["Raw milk", "Water", "Butter", "Milk", "Cream", "Sour cream", "Cheese", "Curd"]
+        .forEach(function (k) { C.dairy[k] = BIG; });
+      CF.fishDishes.forEach(function (d) { C.fish[d.fish] = BIG; });
+      CF.gardenExchangeFruits.forEach(function (f) { CF.state.garden.harvest[f.name] = BIG; });
+    } else if (skill === "Medical science") {
+      // herbs for the machine, and the two handicrafts a kit needs from Crafts
+      CF.gardenMedicinalSeeds.forEach(function (s) { CF.state.garden.medicinalHarvest[s.name] = BIG; });
+      CF.firstAidKit.handicrafts.forEach(function (h) { CF.state.craft.made[h] = BIG; });
+      CF.medicineRecipes.forEach(function (r) { CF.state.medicine.medicines[r.name] = BIG; });
     }
   }
 
@@ -3420,7 +4070,7 @@
         "<li>Make drinks and keep them for sale.</li>" +
         "<li>Make sure there are always enough drinks for every customer.</li></ol></div>" +
       '<div class="jo-sec"><b>What you get:</b><ol>' +
-        "<li>A good place to build up your <b>Bartending</b> skill.</li>" +
+        "<li>A good place to build up your <b>Barkeeping</b> skill.</li>" +
         "<li>Wages based on what you sell.</li></ol></div>" +
       '<div class="jo-ask">Do you want the job?</div>' +
       '<div class="cbtn"><button class="btn go" data-act="tavern-accept-job">I accept the offer!</button></div>' +
@@ -3431,7 +4081,7 @@
     return '<div class="panel tav"><div class="bar">Tavern and Canteen</div>' +
       '<div class="job-offer"><div class="jo-head">The owner offers to sell you the tavern</div>' +
       '<div class="jo-sec"><b>What it takes:</b><ol>' +
-        "<li>Bartending level <b>" + t.reqDrinkMaster + "</b> (you are <b>" + fmt(p.drinkMasterLevel) + "</b>)</li>" +
+        "<li>Barkeeping level <b>" + t.reqDrinkMaster + "</b> (you are <b>" + fmt(p.drinkMasterLevel) + "</b>)</li>" +
         "<li><b>" + fmt(t.priceCC) + "</b> CC in cash (you have <b>" + fmt(p.money) + "</b>)</li></ol></div>" +
       '<div class="jo-sec"><b>What you gain:</b><ol>' +
         "<li>Access to the second floor, where the canteen is.</li>" +
@@ -3498,7 +4148,7 @@
             : whKind === "rawjuice"  ? CF.ruleset.warehouse.rawJuicePerLevel : CF.ruleset.warehouse.finishedPerLevel;
     if (!CF.ruleset.enforceCapacity) return '<div class="info"><span class="i">ℹ</span>Capacity enforcement is OFF (testing mode). You have <b>' + fmt(used) + "</b> " + unitWord + ".</div>";
     return '<div class="info"><span class="i">ℹ</span>This warehouse has a capacity of <b>' + fmt(capv) + "</b> " + unitWord +
-      ", you have <b>" + fmt(used) + "</b> " + unitWord + ". The capacity increases by <b>" + per + "</b> " + unitWord + " with each Bartending level.</div>";
+      ", you have <b>" + fmt(used) + "</b> " + unitWord + ". The capacity increases by <b>" + per + "</b> " + unitWord + " with each Barkeeping level.</div>";
   }
 
   function renderToolContent(id) {
@@ -3579,15 +4229,15 @@
     var h;
     if (ui.mixError) h = '<div class="notice err"><b>NOTICE</b> ' + esc(ui.mixError) + "</div>";
     else { var m = ui.lastMix[tid]; h = m ? '<div class="notice"><b>NOTICE</b> You made drinks and earned <b>' + fmt(m.xp) + "</b> points.</div>" : ""; }
-    if (ui.mixLevelUp != null) h += '<div class="levelup">Your bartending level is now <b>' + fmt(ui.mixLevelUp) + "</b>.</div>";
+    if (ui.mixLevelUp != null) h += '<div class="levelup">Your barkeeping level is now <b>' + fmt(ui.mixLevelUp) + "</b>.</div>";
     return h;
   }
   function mixStatsHtml() {
     var p = CF.state.player;
     var toLevel = Math.max(0, CF.formulas.pointsToNextLevel(p.drinkMasterLevel) - p.drinkMasterPoints);
     return '<table class="ctbl" style="max-width:360px;margin:4px auto">' +
-      '<tr><td class="k">Bartending level</td><td class="v">' + fmt(p.drinkMasterLevel) + "</td></tr>" +
-      '<tr><td class="k">Bartending Points</td><td class="v">' + fmt(p.dmLifetime || 0) + "</td></tr>" +
+      '<tr><td class="k">Barkeeping level</td><td class="v">' + fmt(p.drinkMasterLevel) + "</td></tr>" +
+      '<tr><td class="k">Barkeeping Points</td><td class="v">' + fmt(p.dmLifetime || 0) + "</td></tr>" +
       '<tr><td class="k">Points to level</td><td class="v">' + fmt(toLevel) + "</td></tr></table>";
   }
   /* Fast in-place mix — leaves the "Mix the drink." button untouched. */
@@ -3647,7 +4297,7 @@
     return '<table class="calc2">' +
       '<tr><td class="k">Tavern reputation:</td><td><input type="number" id="calcRep" data-role="calc" value="' + rep + '"></td></tr>' +
       '<tr><td class="k">Drink:</td><td><input type="number" id="calcDrinks" data-role="calc" value="' + drinks + '"></td></tr>' +
-      '<tr><td class="k">Bartending Points:</td><td><input type="number" id="calcPts" data-role="calc" value="' + pts + '"></td></tr></table>' +
+      '<tr><td class="k">Barkeeping Points:</td><td><input type="number" id="calcPts" data-role="calc" value="' + pts + '"></td></tr></table>' +
       '<div id="calcBody">' + calcRows(rep, drinks, pts) + "</div>";
   }
   function calcRows(rep, drinks, pts) {
@@ -3662,7 +4312,7 @@
         row("Clicks to make these drinks:", fmt(c.clicksToMake)) +
         row("Raw material price:", fmt(c.rawMaterialPrice) + " CC") +
       "</div><div class='cgrp'>" +
-        row("Bartending level:", fmt(c.level)) +
+        row("Barkeeping level:", fmt(c.level)) +
         row("Points to level:", fmt(c.pointsToLevel)) +
         row("Clicks to level " + c.nextLevel + " :", fmt(c.clicksToNextLevel)) +
         row("Best drink to make:", '<span class="best">' + esc(c.bestDrink) + " (Level " + c.bestDrinkLevel + " )</span>") +
@@ -3744,12 +4394,12 @@
         renderModal(); break;
       }
       case "dbg-set-level": {
-        var dsk = ui.dbgSkill || "Bartending", dlv = Math.max(1, num("dbgLevel", 1));
+        var dsk = ui.dbgSkill || "Barkeeping", dlv = Math.max(1, num("dbgLevel", 1));
         debugSetLevel(dsk, dlv); CF.autosave(); renderSidebar(); renderPlace(); renderModal();
         toast(dsk + " set to level " + dlv + "."); break;
       }
-      case "dbg-unlimited": debugUnlimited(ui.dbgSkill || "Bartending"); CF.autosave();
-        renderSidebar(); renderPlace(); renderModal(); toast("Filled materials for " + (ui.dbgSkill || "Bartending") + "."); break;
+      case "dbg-unlimited": debugUnlimited(ui.dbgSkill || "Barkeeping"); CF.autosave();
+        renderSidebar(); renderPlace(); renderModal(); toast("Filled materials for " + (ui.dbgSkill || "Barkeeping") + "."); break;
       case "dbg-set-rep": CF.state.player.reputation = Math.max(0, num("dbgRep", 0)); CF.autosave();
         renderSidebar(); renderPlace(); renderModal(); toast("Reputation set."); break;
       case "dbg-run-update": doUpdate(true); renderModal(); break;
@@ -3761,6 +4411,51 @@
       case "dbg-set-tickets": CF.state.garden.tickets = Math.max(0, num("dbgTickets", 0)); dbgApplied("Tickets"); break;
       case "dbg-set-belt": CF.state.chemist.beltCapacity = Math.max(1, num("dbgBelt", 1)); dbgApplied("Belt capacity"); break;
       case "dbg-set-energy": CF.state.sports.handEnergy = Math.max(0, Math.min(CF.sports.maxHandEnergy(), num("dbgEnergy", 0))); CF.state.sports.energyAt = Date.now(); dbgApplied("Hand energy"); break;
+      case "dbg-set-tokens": CF.state.player.tokens = Math.max(0, num("dbgTokens", 0)); dbgApplied("Tokens"); break;
+      case "dbg-set-housegear": CF.state.houseGear = Math.max(0, Math.min(CF.ruleset.perUpdate.gearMax, num("dbgHouseGear", 0))); dbgApplied("House gear"); break;
+      case "dbg-set-sewergear": CF.state.sewerGear = Math.max(0, Math.min(CF.ruleset.perUpdate.gearMax, num("dbgSewerGear", 0))); dbgApplied("Sewer gear"); break;
+      case "dbg-tog": {
+        var w = el.getAttribute("data-what"), pl = CF.state.player;
+        if (w === "tavernJob") pl.tavernJobAccepted = !pl.tavernJobAccepted;
+        else if (w === "tavernOwned") pl.tavernOwned = !pl.tavernOwned;
+        else if (w === "gardener") CF.state.garden.isGardener = !CF.state.garden.isGardener;
+        else if (w === "ship") CF.state.harbor.owned = !CF.state.harbor.owned;
+        dbgApplied(w); break;
+      }
+      case "dbg-tog-pass": {
+        var pid = el.getAttribute("data-what");
+        CF.state.slumPasses[pid] = !CF.state.slumPasses[pid];
+        dbgApplied("Slum pass"); break;
+      }
+      case "dbg-tog-built": {
+        var bk2 = el.getAttribute("data-what");
+        CF.ruleset.built[bk2] = !CF.ruleset.built[bk2];
+        dbgApplied(bk2 + " " + (CF.ruleset.built[bk2] ? "shown" : "hidden")); break;
+      }
+      case "dbg-world-update": CF.state.updateSlot = CF.clock.slot() - 1; CF.settleUpdates();
+        dbgApplied("World update run"); break;
+      case "dbg-skip-time": {
+        var hrs = parseInt(el.getAttribute("data-h"), 10) || 1;
+        var moved = debugShiftTime(hrs);
+        dbgApplied("Jumped " + hrs + " h (" + moved + " timers moved)"); break;
+      }
+      case "dbg-finish-harbor": {
+        var H2 = CF.state.harbor;
+        if (H2.refit) H2.refit.endsAt = Date.now() - 1000;
+        if (H2.trip) H2.trip.endsAt = Date.now() - 1000;
+        dbgApplied("Seaport clocks finished"); break;
+      }
+      case "dbg-clear-bets": CF.state.betting = CF.newBettingState(); dbgApplied("Bet history cleared"); break;
+      case "dbg-fill-moves":
+        CF.state.houseGear = CF.ruleset.perUpdate.gearMax;
+        CF.state.sewerGear = CF.ruleset.perUpdate.gearMax;
+        dbgApplied("Moves refilled"); break;
+      case "dbg-unrob": CF.houses.refreshOnUpdate(); dbgApplied("Every house is worth robbing again"); break;
+      case "dbg-newdistrict": CF.houses.rebuild(); ui.hsCamPrev = null; dbgApplied("New district generated"); break;
+      case "dbg-give-items": CF.state.houses.items = (CF.state.houses.items || 0) + 10;
+        dbgApplied("Stolen items"); break;
+      case "dbg-replay-intro": ui.debugOpen = false; startOnboarding(); renderAll(); break;
+      case "dbg-stock-all": DBG_SKILLS.forEach(function (s) { debugUnlimited(s); }); dbgApplied("Every skill stocked"); break;
       case "dbg-open-office": CF.state.garden.ticketReopenAt = Date.now(); dbgApplied("Ticket office opened"); break;
       case "dbg-late-game": CF.loadLateGame(); ui.place = "account"; ui.debugOpen = false;
         renderAll(); toast("Late-game profile loaded."); break;
@@ -3774,7 +4469,7 @@
       case "tavern-buy-view": ui.tavernBuyView = true; renderPlace(); break;
       case "tavern-buy": {
         var t = CF.ruleset.tavernPurchase, pl = CF.state.player;
-        if (pl.drinkMasterLevel < t.reqDrinkMaster) { toast("Needs Bartending level " + t.reqDrinkMaster + " (you are " + pl.drinkMasterLevel + ").", "err"); break; }
+        if (pl.drinkMasterLevel < t.reqDrinkMaster) { toast("Needs Barkeeping level " + t.reqDrinkMaster + " (you are " + pl.drinkMasterLevel + ").", "err"); break; }
         if (pl.money < t.priceCC) { toast("Needs " + fmt(t.priceCC) + " CC (you have " + fmt(pl.money) + ").", "err"); break; }
         pl.money -= t.priceCC; pl.tavernOwned = true; ui.tavernBuyView = false;
         CF.autosave(); renderSidebar(); renderPlace();
@@ -3848,6 +4543,90 @@
         if (!sr.ok) ui.casError = sr.msg;
         CF.autosave(); renderSidebar(); renderPlace(); break;
       }
+      /* ---- Villas and sewer ---- */
+      case "go-houses": ui.place = "houses"; CF.state.houses.sel = null; renderPlace(); break;
+      case "hs-pick": {
+        var hx = +el.getAttribute("data-x"), hy = +el.getAttribute("data-y");
+        var cur = CF.state.houses.sel;
+        // clicking the selected tile again closes the menu
+        CF.state.houses.sel = (cur && cur.x === hx && cur.y === hy) ? null : { x: hx, y: hy };
+        renderPlace(); break;
+      }
+      case "hs-do": {
+        var dx = +el.getAttribute("data-x"), dy = +el.getAttribute("data-y"), what = el.getAttribute("data-do");
+        ui.hsNotice = null; ui.hsError = null; ui.hsLevelUp = null; ui.hsSub = null;
+        if (what === "sewer" || what === "sewerwalk") {
+          if (what === "sewerwalk" && !CF.houses.standingOn(dx, dy)) {
+            var swr = CF.houses.walkTo(dx, dy);
+            if (!swr.ok) { ui.hsError = swr.msg; CF.state.houses.sel = null; renderSidebar(); renderPlace(); break; }
+          }
+          CF.houses.noteStreetSpot();
+          var er = CF.houses.enterSewer(1);
+          if (er.ok) { ui.hsNotice = er.msg; ui.hsCamPrev = null; CF.autosave(); } else ui.hsError = er.msg;
+        } else if (what === "attack" || what === "treasure" || what === "up" || what === "down") {
+          // all four need you standing on the tile, so walk first if need be
+          if (!CF.houses.standingOn(dx, dy)) {
+            var mr = CF.houses.walkTo(dx, dy);
+            if (!mr.ok) { ui.hsError = mr.msg; CF.state.houses.sel = null; renderSidebar(); renderPlace(); break; }
+          }
+          var ar = what === "attack" ? CF.houses.attackMonster(dx, dy)
+                 : what === "treasure" ? CF.houses.takeTreasure(dx, dy)
+                 : CF.houses.climb(what, dx, dy);
+          if (ar.ok) {
+            ui.hsNotice = ar.msg;
+            if (ar.sub) ui.hsSub = ar.sub;
+            if (ar.levelUp) ui.hsLevelUp = ar.levelUp;
+            if (what === "up" || what === "down") ui.hsCamPrev = null;
+            CF.autosave();
+          } else ui.hsError = ar.msg;
+        } else if (what === "walk") {
+          var wr = CF.houses.walkTo(dx, dy);
+          if (wr.ok) { ui.hsNotice = wr.msg; CF.autosave(); } else ui.hsError = wr.msg;
+        } else if (what === "steal" || what === "walksteal") {
+          // walk-and-steal is one intent: get there, then rob it in the same click
+          if (what === "walksteal" && !CF.houses.standingOn(dx, dy)) {
+            var wr2 = CF.houses.walkTo(dx, dy);
+            if (!wr2.ok) { ui.hsError = wr2.msg; CF.state.houses.sel = null; renderSidebar(); renderPlace(); break; }
+          }
+          var sr = CF.houses.stealFrom(dx, dy);
+          if (sr.ok) {
+            ui.hsNotice = sr.msg;
+            if (sr.levelUp) ui.hsLevelUp = sr.levelUp;
+            CF.autosave();
+          } else ui.hsError = sr.msg;
+        }
+        CF.state.houses.sel = null;
+        renderSidebar(); renderPlace(); break;
+      }
+      /* ---- Slum: the Betting Bunker ---- */
+      case "slum-area": ui.slumArea = el.getAttribute("data-area"); renderPlace(); break;
+      case "bunk-tab": ui.bunkerTab = el.getAttribute("data-tab"); renderPlace(); break;
+      case "bunk-venue":
+        ui.bunkVenue = el.getAttribute("data-venue");
+        ui.bunkPick = null; ui.bunkStake = null;   // a new venue has its own limits
+        renderPlace(); break;
+      case "bunk-pick": ui.bunkPick = el.getAttribute("data-i"); renderPlace(); break;
+      case "bunk-place": {
+        var bs = $("bunkStake") ? parseInt($("bunkStake").value, 10) : 0;
+        if (bs) ui.bunkStake = String(bs);
+        var bv = ui.bunkVenue, bvs = CF.betting.venues();
+        if (!bv) { bvs.forEach(function (v) { if (!bv && CF.betting.isOpen(v)) bv = v.id; }); }
+        var br = CF.betting.placeBet(bv, ui.bunkPick, bs || 0);
+        if (br.ok) {
+          /* No notice on success on purpose: this jumps to the Active tab, and
+           * the race with your slip on it says everything a banner would — one
+           * that would be wiped by the tab change anyway. */
+          ui.bunkError = null; ui.bunkNotice = null;
+          ui.bunkerTab = "active";
+          CF.autosave();
+        } else { ui.bunkError = br.msg; ui.bunkNotice = null; }
+        renderSidebar(); renderPlace(); break;
+      }
+      case "bunk-skip": CF.betting.skip(); CF.autosave(); renderSidebar(); renderPlace(); break;
+      case "bunk-collect":
+        CF.betting.collect();
+        ui.bunkerTab = "place"; ui.bunkNotice = null; ui.bunkError = null;
+        CF.autosave(); renderSidebar(); renderPlace(); break;
       case "cas-buy": case "cas-sell": {
         ui.casNotice = null; ui.casError = null;
         var xr = a === "cas-buy" ? CF.casino.buyTokens(num("casBuy", 0))
@@ -4038,7 +4817,7 @@
         if (br.ok) { ui.sportNotice = br.msg; CF.autosave(); renderSidebar(); } else ui.sportError = br.msg;
         renderPlace(); break;
       }
-      /* ---- Botanical garden ---- */
+      /* ---- Garden ---- */
       case "go-garden": ui.place = "garden"; ui.gardenNotice = null; ui.gardenError = null;
         ui.gardenPtsMsg = null; ui.gardenBackpackBar = false; ui.gardenLevelUp = null; renderPlace(); break;
       case "garden-tab": ui.gardenTab = el.getAttribute("data-tab");
@@ -4047,6 +4826,13 @@
         renderPlace(); break;
       /* ---- harbor ---- */
       case "go-harbor": ui.place = "harbor"; ui.hbNotice = null; ui.hbError = null; renderPlace(); break;
+      case "go-hospital": ui.place = "hospital"; ui.hspNotice = null; ui.hspError = null; renderPlace(); break;
+      case "hsp-cash": case "hsp-kit": {
+        var tr = a === "hsp-cash" ? CF.hospital.treatForCash() : CF.hospital.treatWithKit();
+        if (tr.ok) { ui.hspNotice = tr.msg; ui.hspError = null; CF.autosave(); }
+        else { ui.hspError = tr.msg; ui.hspNotice = null; }
+        renderSidebar(); renderPlace(); break;
+      }
       case "hb-buy": {
         ui.hbNotice = null; ui.hbError = null;
         var br2 = CF.harbor.buyShip();
@@ -4337,6 +5123,20 @@
     var el = e.target, role = el.getAttribute("data-role"); if (!role) return;
     var v = parseInt(el.value, 10); if (isNaN(v)) v = 0;
     if (role === "telqty") { ui.q.tel = v; var pr = $("telPrice"); if (pr) pr.innerHTML = fmt(v * CF.formulas.materialPrice(CF.state.player.reputation)); }
+    else if (role === "bunkstake") {
+      /* Update ONLY the "If it wins" cells. Re-rendering the panel would rebuild
+       * this very input mid-keystroke, and an <input type="number"> cannot have
+       * its caret put back afterwards — selectionStart throws on number inputs,
+       * so the caret fell to 0 and "500" came out as "005". */
+      ui.bunkStake = el.value;
+      var bsel = null, bstk = parseInt(el.value, 10) || 0;
+      CF.betting.venues().forEach(function (x) { if (x.id === ui.bunkVenue) bsel = x; });
+      if (!bsel) CF.betting.venues().forEach(function (x) { if (!bsel && CF.betting.isOpen(x)) bsel = x; });
+      if (bsel) bsel.runners.forEach(function (r, i) {
+        var cell = $("bunkPay" + i);
+        if (cell) cell.innerHTML = "pays <b>" + fmt(Math.floor(bstk * CF.betting.oddsFor(r))) + "</b>";
+      });
+    }
     else if (role === "telmat") { ui.telMat = el.value; }
     else if (role === "j1qty") { ui.q.j1 = v; var pv = $("j1Preview"); if (pv) pv.innerHTML = j1PreviewText(); }
     else if (role === "j1mat") { ui.j1Mat = el.value; var pv2 = $("j1Preview"); if (pv2) pv2.innerHTML = j1PreviewText(); }
@@ -4533,6 +5333,19 @@
       var hth = $("hbTripH"), htm = $("hbTripM");
       if (hth) { var tl = CF.harbor.tripLeft();
         hth.textContent = Math.floor(tl / 3600); htm.textContent = Math.floor((tl % 3600) / 60); }
+      /* The bunker's race advances a step a second. While it runs only the bars
+       * move, so the panel is not rebuilt underneath the player; the finishing
+       * step redraws properly to show the result. */
+      if (CF.betting.running()) {
+        var ended = CF.betting.step();
+        if (ended) { CF.autosave(); renderSidebar(); renderPlace(); }
+        else if ($("brBar0")) {
+          var bpos = CF.betting.positions();
+          bpos.forEach(function (p, i) { var b = $("brBar" + i); if (b) b.style.width = p + "%"; });
+          var lead = $("bunkLive");
+          if (lead) lead.innerHTML = "Leading: <b>" + esc(CF.betting.leader()) + "</b>";
+        }
+      }
       // the two canteen menu slots count down live
       ["veg", "fish"].forEach(function (k) {
         var m = $("canLeft-" + k);

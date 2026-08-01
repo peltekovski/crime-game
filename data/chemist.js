@@ -2,7 +2,7 @@
  * chemist.js — Room 2 (Drug Lab) + the Streets, and CF.chemist logic.
  * ----------------------------------------------------------------------------
  * The Chemist loop (from screenshots + the official help docs):
- *   Botanical garden (not built) → steal PLANTS → carry in backpack → closet
+ *   Garden (not built) → steal PLANTS → carry in backpack → closet
  *   Juicer:   press N plants  → N × juicePerPlant ml of that plant's JUICE
  *   Streets:  buy raw NARCOTICS (per gram, in Money) into your drug BELT
  *   Drug lab: mix  1 g narcotic + 1 ml matching plant-juice → 1 g processed DRUG
@@ -59,7 +59,7 @@ CF.chemRecipeOrder = Object.keys(CF.chemRecipes).sort(function (a, b) { return C
 CF.chemPlants = (function () { var seen = {}, out = []; CF.chemRecipeOrder.forEach(function (k) { var b = CF.chemRecipes[k].juiceBase; if (!seen[b]) { seen[b] = 1; out.push(b); } }); return out; })();
 
 /* Starting Drug-lab state (seeded to match the screenshots so the loop is
- * immediately playable even though the Botanical garden isn't built yet). */
+ * immediately playable even though the Garden isn't built yet). */
 /* FRESH ACCOUNT: Chemist level 1, nothing in the closet, nothing in the belt. */
 CF.chemistStart = {
   points: 0,

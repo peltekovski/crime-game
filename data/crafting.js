@@ -3,7 +3,7 @@
  *
  * All THREE stations share ONE Craft level / points pool (confirmed: the item
  * levels interleave across stations with no overlap). The Craft level curve is
- * the SAME one the Bartending uses — pointsToNext(L) = 19,450,045 * 1.2^(L-64)
+ * the SAME one the Barkeeping uses — pointsToNext(L) = 19,450,045 * 1.2^(L-64)
  * — verified: lifetime 2,280,509,091 derives level 81 with 308,615,062 to the
  * next level against an observed 308,615,083 (21 apart in 308 million).
  *

@@ -185,7 +185,7 @@ CF.formulas = {
     return dpc > 0 ? Math.ceil(batchSize / dpc) : Infinity;
   },
 
-  /* == Bartending XP curve (CONFIRMED geometric, ratio 1.2) ============= */
+  /* == Barkeeping XP curve (CONFIRMED geometric, ratio 1.2) ============= */
   pointsToNextLevel: function (level) {
     var c = CF.ruleset.levelCurve;
     return Math.round(c.anchorValue * Math.pow(c.ratio, level - c.anchorLevel));

@@ -58,7 +58,9 @@ body {
   font: 11px/1.4 Tahoma, Geneva, Verdana, sans-serif;
 }
 #game {
-  max-width: 888px;
+  /* 840, not 888: the page reads noticeably wide above this and the map
+     window (600px) still clears the content column comfortably. */
+  max-width: 840px;
   /* flush to the top — the page background carries straight into the frame
      instead of leaving a strip of dead space above the header */
   margin: 0 auto 10px;
@@ -512,23 +514,19 @@ b { color: inherit; }
 .cbar.on i { background: #3f9e4d; }
 /* an empty dairy container reads as plain white, not red */
 .cbar i { background: #3f9e4d; }
+/* Meter bars — moves, hand energy. GREEN is what you have left, RED is what is
+ * spent, which is how the reference draws them (it stretches a green and a red
+ * 1px image side by side inside a 50px track). There were two `.ebar` blocks
+ * here fighting each other at equal specificity, so every bar came out red
+ * whatever its value — the source-order trap, in the primitives layer. */
 .ebar {
   display: inline-block;
   width: 130px;
   height: 12px;
-  background: var(--red);
-  border: 1px solid #7d8b98;
-  vertical-align: middle;
-  margin: 0 6px;
-}
-.ebar i { display: block; height: 100%; background: var(--green); }
-.ebar {
-  display: inline-block;
-  width: 70px;
-  height: 10px;
   background: #e2e8ee;
   border: 1px solid #9fb0c0;
   vertical-align: middle;
+  margin: 0 6px;
 }
 .ebar > i { display: block; height: 100%; background: #c0392b; }
 .moist {
@@ -1233,6 +1231,9 @@ input:focus, select:focus { outline: none; border-color: var(--link); }
 .bpack .bp-skill { font-weight: bold; font-size: 11px; }
 .bpack .bp-item { padding-top: 2px; }
 .bpack .bp-item a { text-decoration: underline; cursor: pointer; }
+/* numbered entries, the shape the reference uses for stolen items */
+.bpack .bp-num b { color: var(--ink); }
+.bpack .bp-skill + .bp-num, .bpack .bp-item + .bp-num { margin-top: 4px; }
 .market .mlink.cur { color: #7a3c00; background: #f0d9b5; padding: 0 3px; }
 .sellbox .sq { font-weight: bold; font-size: 14px; color: var(--ink); margin-bottom: 10px; }
 .sellbox .sqline { font-size: 13px; }
@@ -1366,6 +1367,153 @@ input:focus, select:focus { outline: none; border-color: var(--link); }
 .crow .k { font-weight: bold; color: var(--ink); text-align: right; flex: 0 0 55%; }
 .crow .v { flex: 0 0 40%; text-align: left; color: var(--ink); }
 .crow .best { color: #2f6ea5; }
+/* -- House and sewage: the street map -------------------------------------
+   A tile grid, not isometric art. Roads are the walkable lattice, lots hold the
+   houses. Red roof = worth robbing, grey = already done, exactly as the
+   reference signals it. */
+.hs-head { display: grid; grid-template-columns: 1fr 300px; gap: 12px; padding: 10px 12px; align-items: start; }
+.hs-blurb { background: var(--cell); border: 1px solid var(--line2); padding: 8px 10px; }
+.hs-stats { text-align: center; }
+.hs-mv.barline { margin-bottom: 4px; }
+.hs-mv { padding-bottom: 6px; }
+.hs-sp { font-size: 11px; padding: 2px 0; }
+.hs-note { text-align: center; margin: 8px 12px 12px; color: var(--muted); }
+
+/* fixed window; the district slides underneath it */
+.ht-view {
+  position: relative;
+  margin: 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  border: 2px solid #333;
+  background: #000;
+}
+.ht-map {
+  display: grid;
+  gap: 0;
+  position: absolute; top: 0; left: 0;
+  transition: transform .3s cubic-bezier(.25,.1,.25,1);  /* overridden per move */
+  will-change: transform;
+}
+/* Every tile is a 40x30 window onto the reference's own sheet; the inline
+   background-position picks which one. Nothing is hand-drawn any more. */
+.ht {
+  position: relative;
+  width: 40px; height: 30px;
+  background-image: url(../img/map_sprite.png);
+  background-size: 680px 210px;       /* the sheet at 1:1 — see houseMap.zoom */
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.ht.klik { cursor: pointer; }
+.ht.klik:hover { box-shadow: inset 0 0 0 2px rgba(240,208,96,.85); }
+.ht.sel { box-shadow: inset 0 0 0 2px #f0d060; z-index: 3; }
+.ht-you {
+  position: absolute; left: 50%; top: 50%;
+  width: 40px; height: 30px;            /* here.png is 40x30, matched to the tile */
+  transform: translate(-50%,-50%);
+  z-index: 2; pointer-events: none;
+  image-rendering: pixelated;
+}
+
+/* the radial action dial, straight off the reference's .optionsMenu */
+.ht-dial {
+  position: absolute; z-index: 20;
+  width: 110px; height: 110px;
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  grid-auto-rows: 32px;
+  justify-content: center; align-content: center;
+  background: radial-gradient(circle at 50% 50%,
+              rgba(255,255,255,.55) 0%, rgba(255,255,255,.30) 62%, rgba(255,255,255,0) 72%);
+  border-radius: 55px;
+  box-shadow: 0 0 30px rgba(20,20,20,.5);
+}
+.ht-cell { display: block; width: 32px; height: 32px; }
+.ht-ico {
+  background-image: url(../img/villa_icons.png);
+  background-repeat: no-repeat;
+  background-position-x: 0;
+  opacity: .75;
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+.ht-ico:hover { opacity: 1; }
+.ht-ico.off { opacity: .3; cursor: not-allowed; }
+.ht-dial-note {
+  grid-column: 1 / -1;
+  text-align: center; font-size: 10px; color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* debug: rows of small toggles/buttons that wrap instead of running off */
+.dbg-togs { display: flex; flex-wrap: wrap; gap: 4px; }
+.dbg-togs .btn { font-size: 11px; }
+.dbg-tog { text-align: left; }
+
+/* -- Betting Bunker (Slum) -------------------------------------------------
+   Same furniture as the rest of the game: a .bar2 head, a tab strip like the
+   canteen's, .mktab for the field, .radio for the pick. The only new thing is
+   the race track, which is the .ebar idea stretched out. */
+.bunker { padding-bottom: 4px; }
+.bunk-nav { text-align: center; padding: 6px 0; background: var(--panel); border-bottom: 1px solid var(--line2); }
+.bunk-nav a, .bunk-nav b { margin: 0 10px; font-size: 12px; }
+.bunk-nav b { color: var(--ink); }
+.bunk-grid { display: grid; grid-template-columns: 210px 1fr; gap: 12px; padding: 10px 12px; align-items: start; }
+.bunk-venues { border: 1px solid var(--line); background: var(--cell); }
+.bv { padding: 6px 8px; border-bottom: 1px solid var(--line2); cursor: pointer; }
+.bv:last-child { border-bottom: none; }
+.bv:hover { background: var(--hl); }
+.bv.on { background: var(--hdr-bot); }
+.bv.on .bv-name, .bv.on .bv-sub { color: #fff; }
+.bv.off { cursor: default; opacity: .75; }
+.bv.off:hover { background: none; }
+.bv-name { font-weight: bold; color: var(--link); }
+.bv.off .bv-name { color: var(--muted); }
+.bv-sub { font-size: 10px; color: var(--muted); line-height: 1.35; }
+.bunk-main { min-width: 0; overflow-x: auto; }
+.bunk-main.wide { padding: 10px 12px; }
+.bunk-blurb { margin: 6px 0 8px; color: var(--muted); }
+/* These tables sit in a grid track, so they must NOT inherit .mktab's fixed
+   32px side margin or its nowrap cells. Either one stops the track from ever
+   shrinking, which is what pushed the whole panel out through the frame. */
+.bunk-field, .bunk-hist { width: 100%; margin: 4px 0 10px; }
+.bunk-field td, .bunk-field th,
+.bunk-hist td, .bunk-hist th { white-space: normal; padding: 4px 6px; }
+.bunk-hist td, .bunk-hist th { font-size: 11px; }
+.bunk-field .pays { color: var(--muted); }
+.brow { cursor: pointer; }
+.brow:hover { background: var(--hl); }
+.brow.on { background: var(--hl); }
+.bunk-stakebar { padding: 8px 0 2px; text-align: center; }
+.bunk-stakebar input { width: 120px; padding: 2px 4px; border: 1px solid var(--line); }
+.bunk-lim { color: var(--muted); font-size: 10px; }
+.bunk-empty { padding: 20px; text-align: center; color: var(--muted); }
+.bunk-slip { text-align: center; padding: 4px 0 10px; }
+.bunk-live { text-align: center; font-weight: bold; color: var(--link); padding: 4px 0; }
+.bunk-res { text-align: center; font-weight: bold; padding: 6px 0; font-size: 13px; }
+.bunk-res.win { color: var(--green); }
+.bunk-res.lose { color: var(--red); }
+
+/* the race: one lane per runner */
+.bunk-races { border: 1px solid var(--line); background: var(--cell); padding: 6px 8px; }
+.brace { display: grid; grid-template-columns: 150px 1fr 46px; gap: 8px; align-items: center; padding: 3px 0; }
+.br-name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brace.mine .br-name { font-weight: bold; color: var(--link); }
+.brace.won .br-name { color: var(--green); }
+.br-tag { font-size: 9px; color: var(--muted); font-weight: normal; }
+.br-track { height: 12px; background: #fff; border: 1px solid var(--line2); overflow: hidden; }
+.br-track i { display: block; height: 100%; background: linear-gradient(180deg,#8fb0d4,#4f7ba6); transition: width .45s linear; }
+.brace.mine .br-track i { background: linear-gradient(180deg,#e0b76a,#c08a24); }
+.brace.won .br-track i { background: linear-gradient(180deg,#7fc182,#2f7d32); }
+.br-odds { font-size: 10px; color: var(--muted); text-align: right; }
+.bunk-hist { width: 100%; }
+
+@media (max-width: 700px) {
+  .bunk-grid { grid-template-columns: 1fr; }
+  .brace { grid-template-columns: 100px 1fr 40px; }
+}
+
 /* -- Game guide popup ------------------------------------------------------
    Index on the left, article on the right. The article scrolls on its own so
    the index stays put no matter how long a page gets. */
@@ -2035,3 +2183,54 @@ select:focus-visible,
   .cas-head, .garden-head { flex-direction: column; align-items: center; }
   .modal { max-width: 96vw; }
 }
+
+/* ---- Hospital (treatment desk) ------------------------------------------ */
+.hsp-rooms {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 2px 18px; margin: 8px 16px 12px;
+}
+.hsp-room { padding: 2px 0; }
+.hsp-room.live { font-weight: bold; }
+.hsp-room.dead { color: #8a97a4; }
+.hsp-soon { font-size: 10px; color: #9aa7b4; }
+.hsp-desk { margin: 0 16px 12px; }
+.hsp-bar { margin-bottom: 8px; }
+.hsp-well { color: #2f6b34; font-weight: bold; }
+.hsp-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+
+/* ---- label / bar / value rows -------------------------------------------
+   Three cells so the bars line up down a column instead of each row putting
+   its bar wherever its label happens to end. Used by the account overview's
+   move/energy rows and by the villas + sewer headers, where "84 / 100" used
+   to wrap onto a second line. */
+.barline {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.barline .bl-lbl { text-align: left; }
+.barline .bl-bar { min-width: 0; }
+.barline .bl-bar .ebar { display: block; width: 100%; margin: 0; }
+.barline .bl-val { text-align: right; font-weight: bold; }
+/* in the account boxes the label column is fixed so every box agrees */
+.accrow.barline { grid-template-columns: 120px 1fr auto; }
+
+/* ---- opponent level badge on a sewer tile -------------------------------
+   Colour is the fight as it would actually go for you now, not the raw level:
+   the same rounds-to-kill against rounds-to-die the fight loop races. */
+.ht-lvl {
+  position: absolute; right: 1px; bottom: 0;
+  min-width: 12px; padding: 0 2px;
+  font: bold 9px/11px Tahoma, sans-serif;
+  text-align: center; color: #fff;
+  border: 1px solid rgba(0,0,0,.55);
+  border-radius: 2px;
+  text-shadow: 0 1px 0 rgba(0,0,0,.6);
+  z-index: 3; pointer-events: none;
+}
+.ht-lvl.easy   { background: #2e7d32; }
+.ht-lvl.fair   { background: #7a8b1e; }
+.ht-lvl.risky  { background: #c47a10; }
+.ht-lvl.deadly { background: #9c1f16; }

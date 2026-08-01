@@ -59,7 +59,7 @@ CF.craft = (function () {
   /* ---------------- the three work stations (room 1) -------------------- */
 
   /* All stations share ONE Craft level/points pool, on the same curve the
-   * Bartending uses. Level is derived from the lifetime points. */
+   * Barkeeping uses. Level is derived from the lifetime points. */
   function progress() {
     var lifetime = C().points || 0;
     var lv = CF.formulas.levelFromLifetimeXP(lifetime);

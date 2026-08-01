@@ -1,7 +1,7 @@
 /* ============================================================================
  * medicine.js — room 5, the MEDICINE LABORATORY.
  * ----------------------------------------------------------------------------
- * The consumer end of the Botanical garden's medicinal beds:
+ * The consumer end of the Garden's medicinal beds:
  *   medicinal herbs -> Medicine Machine -> medicines -> Packing table -> kits
  * Medicines are sold for cash at the Laboratory warehouse. The reference also
  * offers "put it on the market" and a credits sale — both LEFT OUT per the user.

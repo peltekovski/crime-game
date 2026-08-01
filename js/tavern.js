@@ -6,7 +6,7 @@
  *  - Juicer #1: press raw materials into raw juice.
  *  - Stations: MIX drinks one click at a time. Each click consumes 1 of each
  *    ingredient and produces `drinkPerClick(reputation)` finished drinks, plus
- *    Bartending experience. There is no batch quantity — you click.
+ *    Barkeeping experience. There is no batch quantity — you click.
  *  - Update (runUpdate, fired by the "time until update" timer): if the tavern
  *    is open, up to clientsPer10Min(reputation) customers arrive and buy drinks
  *    automatically. Stock drops, you earn MONEY, and reputation rises when you
@@ -85,7 +85,7 @@ CF.tavern = (function () {
 
   function mixDrink(recipe) {
     if (!recipe) return fail("Choose a drink to make.");
-    if (!isUnlocked(recipe)) return fail(recipe.name + " needs Bartending level " + recipe.unlockLevel + ".");
+    if (!isUnlocked(recipe)) return fail(recipe.name + " needs Barkeeping level " + recipe.unlockLevel + ".");
 
     /* Need at least one of each ingredient. Name the RIGHT remedy: a raw
      * material is bought at the telephone, a juice is pressed at the juicer.
@@ -115,7 +115,7 @@ CF.tavern = (function () {
     });
     INV().finished[recipe.name] += made;
 
-    // experience -> Bartending level. CONFIRMED: a flat amount per click set
+    // experience -> Barkeeping level. CONFIRMED: a flat amount per click set
     // by the DRINK's level (reference table), independent of drinks-made/reputation.
     var xp = CF.formulas.xpForDrinkLevel(recipe.unlockLevel);
     P().drinkMasterPoints += xp;
@@ -201,7 +201,7 @@ CF.tavern = (function () {
   }
 
   /* -- Calculator panel — mirrors the in-game calculator ------------------
-   * Inputs: tavern reputation, current Drink stock, total Bartending Points.
+   * Inputs: tavern reputation, current Drink stock, total Barkeeping Points.
    * The level is DERIVED from the lifetime points (as the real one does). */
   function calculate(rep, drinks, lifetimePoints) {
     var f = CF.formulas;

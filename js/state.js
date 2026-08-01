@@ -95,11 +95,11 @@ CF.loadLateGame = function () {
   s.garden.gardenPoints = f.xpToReachLevelFor("Gardening", 12);
   s.garden.tickets = 27;
   CF.seedLateGarden(s);
-  s.sports.durabilityPoints = f.xpToReachLevelFor("Durability", 38);
-  s.sports.powerPoints = f.xpToReachLevelFor("Power", 13);
+  s.sports.durabilityPoints = f.xpToReachLevelFor("Endurance", 38);
+  s.sports.powerPoints = f.xpToReachLevelFor("Strength", 13);
   s.sports.passes = { gym: true, stadium: false, boxing: false };
   // canteen: Cooking 2 with the reference's 1,000 points into it, plus enough
-  // dairy and fish to work both cooking tables (the Harbor isn't built yet)
+  // dairy and fish to work both cooking tables (the Seaport isn't built yet)
   s.canteen.cookPoints = f.xpToReachLevelFor("Cooking", 2) + 1000;
   s.canteen.dairy = { "Raw milk": 100, "Water": 100, "Butter": 100, "Milk": 40 };
   s.canteen.fish = { "Baltic herring": 60 };   // its dish is level 2, like Cooking
@@ -143,7 +143,7 @@ CF.newCanteenState = function () {
   return { reputation: 0, dairy: {}, fish: {}, cookPoints: 0, menu: { veg: null, fish: null } };
 };
 
-/* Harbor slice — the boat, its two crews, and whatever it's currently doing.
+/* Seaport slice — the boat, its two crews, and whatever it's currently doing.
  * The CATCH is not here: it lands in the canteen's fish warehouse. */
 CF.newHarborState = function () {
   return { owned: false,                       // bought from the old fisherman
@@ -157,12 +157,28 @@ CF.newCasinoState = function () {
   return { bet: CF.ruleset.casino.defaultBet, game: null, bj: null, vp: null, slot: null };
 };
 
-/* Sports-complex slice (Durability/Power are stored as LIFETIME points). */
+/* Betting Bunker slice. `active` is the slip currently running (or the finished
+ * one you have not cleared yet); `history` is the last N settled bets. */
+CF.newBettingState = function () {
+  return { active: null, history: [] };
+};
+
+/* Villas and sewer slice. The map is generated on first visit and kept, so the
+ * block you know stays the block you know. `items` counts stolen bank items,
+ * which have nowhere to go until the bank side is built. */
+CF.newHousesState = function () {
+  return { size: "medium", cells: null, holes: {}, w: 0, h: 0,
+           px: 0, py: 0, robbed: {}, sel: null, items: 0, equipment: 0,
+           // 0 = the street; 1..6 are sewer floors, carved on the way down
+           level: 0, maxLevel: 1, sewerCells: null, streetX: null, streetY: null };
+};
+
+/* Sports-complex slice (Endurance/Strength are stored as LIFETIME points). */
 CF.newSportsState = function () {
   var s = CF.sportsStart, f = CF.formulas;
   return {
-    durabilityPoints: f.xpToReachLevelFor("Durability", s.durabilityLevel) + s.durabilityInto,
-    powerPoints: f.xpToReachLevelFor("Power", s.powerLevel) + s.powerInto,
+    durabilityPoints: f.xpToReachLevelFor("Endurance", s.durabilityLevel) + s.durabilityInto,
+    powerPoints: f.xpToReachLevelFor("Strength", s.powerLevel) + s.powerInto,
     handEnergy: s.handEnergy, energyAt: Date.now(),
     equipment: JSON.parse(JSON.stringify(s.equipment)),
     passes: JSON.parse(JSON.stringify(s.passes)),
@@ -217,9 +233,14 @@ CF.newAccount = function () {
       cooking: s.cooking,
     },
     inv: { materials: materials, rawJuice: rawJuice, finished: finished },
-    // Stealing gear for House and sewage. Both refill by perUpdate.*Gear.
+    // Stealing gear for Villas and sewer. Both refill by perUpdate.*Gear.
     houseGear: 25,
-    sewageGear: 10,
+    sewerGear: 10,
+    /* The bank vault (named items the sewer's chests deliver straight into it,
+       never through your backpack) and the weapon rack (cold weapons picked up
+       off the tunnel floor). Both are keyed by name -> count. */
+    vault: {},
+    arms: {},
     // Crafts room: the closet ("craft cabinet") and the backpack you carry
     // materials home from the market in.
     craft: {
@@ -244,10 +265,12 @@ CF.newAccount = function () {
       beltCapacity: CF.chemistStart.beltCapacity,
       backpackPlants: null,
     },
-    garden: CF.newGardenState(),                             // Botanical garden
+    garden: CF.newGardenState(),                             // Garden
     slumPasses: {},                                          // bought at the Ticket counter
     sports: CF.newSportsState(),                             // Sports complex
     casino: CF.newCasinoState(),                             // Casino tables
+    betting: CF.newBettingState(),                           // Slum betting bunker
+    houses: CF.newHousesState(),                             // Villas and sewer map
     medicine: CF.newMedicineState(),                         // room 5 (Medicine lab)
     canteen: CF.newCanteenState(),                           // tavern 2nd floor
     harbor: CF.newHarborState(),                             // the fishing boat
@@ -295,7 +318,12 @@ CF.settleUpdates = function () {
     s.sports.energySlot = now;
   }
   s.houseGear  = Math.min(u.gearMax, (s.houseGear  || 0) + n * u.houseGear);
-  s.sewageGear = Math.min(u.gearMax, (s.sewageGear || 0) + n * u.sewageGear);
+  s.sewerGear = Math.min(u.gearMax, (s.sewerGear || 0) + n * u.sewerGear);
+  /* EVERY update puts the whole district back, not only one that happened to
+   * add moves. Tying it to the moves going up meant a player sitting at a full
+   * 100/100 never saw the houses refresh at all — the one case where you are
+   * most able to go robbing. */
+  if (CF.houses) CF.houses.refreshOnUpdate();
   return n;
 };
 
@@ -313,14 +341,19 @@ CF.reconcileState = function () {
     fighting: CF.ruleset.start.fighting, cooking: CF.ruleset.start.cooking };
   for (var k in defs) if (defs.hasOwnProperty(k) && p[k] == null) p[k] = defs[k];
 
-  /* Stealing gear for House and sewage; both fill by perUpdate.*Gear an hour.
+  /* Stealing gear for Villas and sewer; both fill by perUpdate.*Gear an hour.
    * Carries a save made before the location was renamed, so nobody loses the
    * gear they had accrued under the old key. */
   if (CF.state.houseGear == null)
     CF.state.houseGear = CF.state.cottageGear != null ? CF.state.cottageGear : 25;
-  if (CF.state.sewageGear == null)
-    CF.state.sewageGear = CF.state.rentselGear != null ? CF.state.rentselGear : 10;
-  delete CF.state.cottageGear; delete CF.state.rentselGear;
+  // this one has been renamed twice: rentselGear -> sewageGear -> sewerGear
+  if (CF.state.sewerGear == null)
+    CF.state.sewerGear = CF.state.sewageGear != null ? CF.state.sewageGear
+                       : CF.state.rentselGear != null ? CF.state.rentselGear : 10;
+  delete CF.state.cottageGear; delete CF.state.rentselGear; delete CF.state.sewageGear;
+  // vault + weapon rack arrived with the sewer's chests; older saves lack them
+  if (!CF.state.vault) CF.state.vault = {};
+  if (!CF.state.arms) CF.state.arms = {};
 
   // crafts room (added later than v1 saves)
   var cr = CF.state.craft || (CF.state.craft = { supplies: {}, backpack: null });
@@ -359,7 +392,7 @@ CF.reconcileState = function () {
   CF.state.sports.equipment = CF.state.sports.equipment || {};
   CF.state.sports.passes = CF.state.sports.passes || { stadium: false, boxing: false };
 
-  // botanical garden — added later
+  // garden — added later
   if (!CF.state.garden) CF.state.garden = CF.newGardenState();
   CF.state.garden.edibleSeeds = CF.state.garden.edibleSeeds || {};
   CF.state.garden.medicinalSeeds = CF.state.garden.medicinalSeeds || {};
@@ -379,6 +412,12 @@ CF.reconcileState = function () {
 
   // casino + medicine lab — added later
   if (!CF.state.casino) CF.state.casino = CF.newCasinoState();
+  if (!CF.state.betting) CF.state.betting = CF.newBettingState();
+  CF.state.betting.history = CF.state.betting.history || [];
+  if (!CF.state.houses) CF.state.houses = CF.newHousesState();
+  CF.state.houses.robbed = CF.state.houses.robbed || {};
+  if (CF.state.houses.level == null) CF.state.houses.level = 0;
+  if (CF.state.sports && CF.state.sports.weaponPoints == null) CF.state.sports.weaponPoints = 0;
   if (!CF.state.medicine) CF.state.medicine = CF.newMedicineState();
   CF.state.medicine.medicines = CF.state.medicine.medicines || {};
   if (!CF.state.harbor) CF.state.harbor = CF.newHarborState();

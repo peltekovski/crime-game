@@ -1,5 +1,5 @@
 /* ============================================================================
- * garden.js — The Botanical Garden (Stealing + Gardening skills).
+ * garden.js — The Garden (Stealing + Gardening skills).
  * ----------------------------------------------------------------------------
  * The greenhouse is where the Chemist chain STARTS: spend a greenhouse ticket to
  * steal a backpack of drug plants, carry them home, and press them in the Juicer.

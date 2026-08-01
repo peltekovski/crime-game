@@ -32,7 +32,7 @@ CF.ruleset = {
     tavernJobAccepted: false,     // the tavern shows a job offer until you accept
     tavernOwned:      false,      // buying it unlocks the 2nd floor + Cooking
     // Body stats a new character starts with (sidebar "Your data")
-    durability:       27,
+    endurance:       27,
     fighting:         0,          // shown as 0.00 on a fresh account
     weaponHandling:   1, protection: 10, power: 10, speed: 10, skill: 10,
     cooking:          1, medicalScience: 1, mining: 1,
@@ -50,17 +50,17 @@ CF.ruleset = {
    * Cost to reach level N = costBase × costRatio^(N-1): 5,000 / 15,000 / 45,000 …
    * Buildable only when Crafting >= N × craftLevelsPerHouseLevel. Max 14. */
   /* firstLevelSkill: you can't craft before you own a house, so the FIRST level
-   * is gated on Bartending 10 instead (matches the docs' "buy a house at Drink
+   * is gated on Barkeeping 10 instead (matches the docs' "buy a house at Drink
    * Master 10"); every level after that needs Crafting = currentLevel x 10. */
   house: { costBase: 5000, costRatio: 3, maxLevel: 14, craftLevelsPerHouseLevel: 10,
-           firstLevelSkill: "Bartending", firstLevelReq: 10 },
+           firstLevelSkill: "Barkeeping", firstLevelReq: 10 },
 
   /* Bank: deposit/withdraw works; buying the bank itself isn't built. */
   bank: { buyPriceCC: 50000000 },
 
   /* -- Locations gated behind a HOUSE level (observed on a fresh account):
    *   "To get to the slum, your house must be at least level 1!"
-   *   "To access the botanical garden, your house must be at least level 2!" */
+   *   "To access the garden, your house must be at least level 2!" */
   locationHouseReq: { slum: 1, garden: 2, racing: 3, casino: 4 },
 
   /* -- Casino. Chips ARE the sidebar's tokens; the Cashier is the only door
@@ -68,6 +68,64 @@ CF.ruleset = {
    * chips in hand, 99,200 typed into the exchange box = a round 100,000).
    * defaultBet 100 is the value the reference pre-fills. */
   casino: { tokenRate: 1, defaultBet: 100, slotBets: [100, 1000, 10000] },
+
+  /* -- Betting Bunker (Slum). OUR system: the reference's version bet on other
+   * players' races, which cannot work single-player, so the bunker runs its own
+   * events (see data/betting.js).
+   * `edge` is the only lever — every runner's odds are derived from its chance
+   * and this number, so the house take is exactly this at every venue. Kept
+   * gentler than the slot machine's ~12%: the bunker is a money sink, but one
+   * you are meant to be able to play with for a while. */
+  bettingBunker: { edge: 0.08, raceTicks: 6, historyMax: 10 },
+
+  /* -- Villas and sewer (the street-stealing map). The money band and the 2
+   * steal points a job pays are the user's; the 1/10 bank-item rate is the
+   * room's own advertised odds (see CF.houseLoot). Moves come out of the shared
+   * houseGear pool, so they refill +5 an update like everything else. */
+  houseSteal: { minCC: 1000, maxCC: 10000, stealPoints: 2 },
+
+  /* -- The sewer under the villas. Its own move pool (sewerGear) and its own
+   * skill: killing things trains WEAPON HANDLING, which the reference's own XP
+   * line confirms. Treasure scales with how deep you are. */
+  /* -- The Hospital. Only the TREATMENT half is built: it is what puts your
+   * endurance back after a lost fight in the sewer. The management side the
+   * reference has (levels, cleanliness, nursing quality, wards, surgery,
+   * parking, daily profit and debt) is not modelled yet.
+   *
+   * CASH PRICE IS EXACT: one reading, endurance 0/45 quoted at 91,125 CC, and
+   * 45^3 = 91,125 to the digit. Since the endurance rule is all-or-nothing you
+   * are always healing a full bar, so cubing the MAX is the same thing as
+   * cubing the shortfall — a second reading at partial health would tell them
+   * apart, but nothing in this build can produce one.
+   *
+   * The kit route is free of cash and spends one FIRST AID KIT from the
+   * medicine laboratory's packing table, which is what finally gives those kits
+   * somewhere to go. */
+  hospital: { costPower: 3, kitsPerTreatment: 1, level: 2 },
+
+  sewer: { pointsPerKill: 3, minCC: 2000, maxCC: 9000,
+           /* Tunnels are CROWDED — the reference's floor has something to fight
+            * every few tiles. You are not meant to clear it, only to pick which
+            * fights your endurance can pay for. */
+           /* treasureChance is a DROP rate off a kill now, not a spawn rate on
+            * the floor — nothing is placed for you to walk onto. 0.05 was a
+            * sensible amount of scenery but a miserly drop, so roughly one
+            * fight in five leaves a chest. */
+           monsterChance: 0.28, treasureChance: 0.2, ladderChance: 0.4,
+           /* What is in a chest: a numbered bank-vault item, a cold weapon, or
+            * (the remainder) cash. The vault items are the ones that matter —
+            * they are what the bank is built on. */
+           vaultChance: 0.25, weaponChance: 0.3,
+           /* Monster health and damage, both multiplied by tierRatio^tier.
+            * Skills go to 1000, so the curve has to be geometric to stay
+            * meaningful the whole way down. See attackMonster in houses.js. */
+           /* Health and damage grow at DIFFERENT rates on purpose. Your damage
+            * rises with Weapon handling, but your endurance is trained
+            * separately and much more slowly, so a single ratio either left the
+            * shallow end trivial (every floor-1 monster a guaranteed kill) or
+            * made the deep end unwinnable no matter how much Weapon handling
+            * you had. Health tracks your damage; damage tracks your endurance. */
+           hpBase: 60, dmgBase: 3.0, hpRatio: 1.03, dmgRatio: 1.032 },
 
   /* -- Slum area passes, sold at the market's Ticket counter. The counter's own
    * prices weren't captured, so these are PLACEHOLDERS — swap them for the real
@@ -98,8 +156,8 @@ CF.ruleset = {
    * reference and are the spec for building the thing later. */
   built: {
     mining:            false,   // Mining location + the battery/map panel
-    hospital:          false,   // Hospital, and the extra medicinal beds it unlocks
-    houseSewage:       false,   // House and sewage (its gear bars already tick)
+    hospital:          true,    // Hospital — TREATMENT ONLY so far, see ruleset.hospital
+    houseSewer:       true,    // Villas and sewer — the street map is built
     bankItems:         false,   // "maintain N more bank items"
     casinoCoupons:     false,   // "N more casino coupons"
     marketHandicrafts: false,   // buying handicrafts at the market
@@ -112,7 +170,7 @@ CF.ruleset = {
    * juiceSellCC: nominal placeholder price for selling juice on the player market. */
   chemist: { juicePerPlant: 4, beltCapacity: 10, juiceSellCC: 1 },
 
-  /* -- Botanical garden. Stealing costs 1 ticket per attempt (user-confirmed).
+  /* -- Garden. Stealing costs 1 ticket per attempt (user-confirmed).
    * plantBackpackSize 50 = the backpack's "Plants: (holds 50)"; a plant steal
    * gave 3 steal points and a seed steal 1 (both observed). */
   // ticketsBase 9: the office sells "Stealing level + 9" tickets (official rule);
@@ -151,7 +209,7 @@ CF.ruleset = {
              * 10 / 20 / 50 / 100 / 1,000 fruit. */
             brokerageRate: 0.0001, exchangeLots: [10, 20, 50, 100, 1000] },
 
-  /* -- Per-skill level curves. Bartending/Crafting/Blacksmithing/Chemist all use
+  /* -- Per-skill level curves. Barkeeping/Crafting/Smithing/Chemist all use
    * the UNIVERSAL curve (levelCurve above). Gardening and Stealing are far
    * flatter and have their own — each anchored to its ONE observed reading:
    *   Gardening L1 -> 161 to next (screenshot XP 75/161)
@@ -159,15 +217,15 @@ CF.ruleset = {
    * The 1.2 ratio is ASSUMED (copied from the universal curve) — only the anchor
    * is real, so re-fit once a second level is observed for either skill. */
   skillCurves: {
-    // Gardening/Power: ONE observed point each, so the 1.2 ratio is assumed.
+    // Gardening/Strength: ONE observed point each, so the 1.2 ratio is assumed.
     "Gardening":  { ratio: 1.2,   anchorLevel: 1,  anchorValue: 161 },
-    "Power":      { ratio: 1.2,   anchorLevel: 13, anchorValue: 11216 },  // "still need 11,216 power points" at L13
-    // Stealing/Durability: TWO points each (panel "XP into/need" + the ranking's
+    "Strength":      { ratio: 1.2,   anchorLevel: 13, anchorValue: 11216 },  // "still need 11,216 strength points" at L13
+    // Stealing/Endurance: TWO points each (panel "XP into/need" + the ranking's
     // LIFETIME xp), so these ratios are FITTED, not guessed:
     //   Stealing  L5 needs 58, lifetime 130 -> ratio 1.507 reproduces 130 exactly
-    //   Durability L38 needs 77, lifetime 512 -> ratio 1.169 gives 513 (within 1)
+    //   Endurance L38 needs 77, lifetime 512 -> ratio 1.169 gives 513 (within 1)
     "Stealing":   { ratio: 1.507, anchorLevel: 5,  anchorValue: 58 },
-    "Durability": { ratio: 1.169, anchorLevel: 38, anchorValue: 77 },
+    "Endurance": { ratio: 1.169, anchorLevel: 38, anchorValue: 77 },
     /* Medical science has NO entry ON PURPOSE — it rides the UNIVERSAL curve,
      * and only the universal curve fits both observed readings:
      *   L1  "Points to level: 200"  -> universal 199.76 -> 200   (both fit)
@@ -175,6 +233,9 @@ CF.ruleset = {
      * The 200-anchored curve this used to carry gives 2,140 at L14, so it was
      * fitting the first reading and drifting off the second. Deleting the entry
      * IS the fix: pointsToNextLevelFor() falls through to pointsToNextLevel(). */
+    /* Weapon handling: trained by killing things in the sewer. No reading exists,
+     * so this is OUR curve — flat enough that early kills show progress. */
+    "Weapon handling": { ratio: 1.18, anchorLevel: 1, anchorValue: 12 },
     // Cooking: the canteen's cooking tables read 1,000 into level 2 with 980
     // still to go, so level 2 costs 1,980. Ratio assumed.
     "Cooking": { ratio: 1.2, anchorLevel: 2, anchorValue: 1980 },
@@ -196,7 +257,7 @@ CF.ruleset = {
    * falling out of the two curves with nothing left to tune. */
   medicine: { priceUnit: 1141, kitPointsBase: 20, kitPointsRatio: 1.11 },
 
-  /* -- Harbor (the reference's "Port"). Observed: a level-1 upgrade costs
+  /* -- Seaport (the reference's "Port"). Observed: a level-1 upgrade costs
    * 10,001 CC / 12 h and a level-5 one 13,125 CC / 16 h, which fits
    * cost = 10,001 + 781 x (level-1) and hours = 11 + level exactly.
    * Holds 25/20/15 kg at cargo level 1 (= the "60kg" the ship data reports);
@@ -232,10 +293,10 @@ CF.ruleset = {
   /* -- Fame per skill — CONFIRMED by the official help + both skill panels
    * (Gardening L1 -> 9 = 1²·9; Stealing L5 -> 75 = 5²·3). */
   fameFormulas: {
-    sq9:  ["Crafting", "Bartending", "Chemist", "Medical science", "Blacksmithing", "Weapon handling", "Gardening"],
+    sq9:  ["Crafting", "Barkeeping", "Chemist", "Medical science", "Smithing", "Weapon handling", "Gardening"],
     sq3:  ["Stealing", "Cooking"],
-    sq3m9: ["Speed", "Power", "Skill", "Protection"],   // (level-9)²·3
-    sq3m5: ["Durability"],                              // (level-5)²·3
+    sq3m9: ["Speed", "Strength", "Dexterity", "Defence"],   // (level-9)²·3
+    sq3m5: ["Endurance"],                              // (level-5)²·3
   },
 
   /* -- CURRENCY (resolved from the reference screenshot: Money 1.15B / CC 0) -
@@ -263,11 +324,11 @@ CF.ruleset = {
 
   /* What one update hands you. gearMax caps the two stealing-gear bars on the
    * account overview; hand energy has its own cap in `sports`. */
-  perUpdate: { handEnergy: 5, houseGear: 5, sewageGear: 5, gearMax: 100 },
+  perUpdate: { handEnergy: 5, houseGear: 5, sewerGear: 5, gearMax: 100 },
 
   /* -- Capacity enforcement ------------------------------------------------
    * Raw materials and raw juice share a per-warehouse TOTAL cap that grows with
-   * Bartending level (verified at level 83: materials 2000+120*83 = 11,960 and
+   * Barkeeping level (verified at level 83: materials 2000+120*83 = 11,960 and
    * juice 1000+60*83 = 5,980, matching the reference exactly). Ready-to-sell
    * drinks are uncapped. ON by default; the debug popup can switch it off. */
   enforceCapacity: true,
@@ -359,7 +420,7 @@ CF.ruleset = {
   },
 
   /* -- Reputation cap — an UPGRADE value, not a level formula --------------
-   * Observed tiers: 76,040 (Bartending L64-67), 95,908 (L68), 143,792 (a higher-
+   * Observed tiers: 76,040 (Barkeeping L64-67), 95,908 (L68), 143,792 (a higher-
    * level account, drinks unlocked to L74). Not per-level; it looks like a
    * tavern upgrade we haven't modelled yet. Kept as a plain editable number
    * (also settable in the debug panel). */
@@ -392,7 +453,7 @@ CF.ruleset = {
 
   /* -- Reputation -> throughput curves (CONFIRMED to depend on reputation
    * ONLY; exact curve NOT confirmed — OUR power fits to the brief's table) - */
-  // Power-law fits — now used only to EXTRAPOLATE above the last anchor below.
+  // Strength-law fits — now used only to EXTRAPOLATE above the last anchor below.
   drinkPerClick:   { A: 0.006296, p: 0.6785 },  // dpc = A * rep^p
   clientsPer10Min: { B: 0.04343,  q: 0.89173 }, // clients = B * rep^q
 
@@ -433,7 +494,7 @@ CF.ruleset = {
    * Tune repLossCoef down to soften the penalty. */
   repLossCoef: 0.19346,
 
-  /* -- Bartending leveling XP curve — CONFIRMED geometric, ratio 1.2 -----
+  /* -- Barkeeping leveling XP curve — CONFIRMED geometric, ratio 1.2 -----
    * pointsToNext(65)/pointsToNext(64) = 23,340,054 / 19,450,045 = 1.2 exactly.
    * pointsToNext(L) = anchorValue * ratio^(L - anchorLevel). */
   levelCurve: { ratio: 1.2, anchorLevel: 64, anchorValue: 19450045 },
@@ -444,16 +505,16 @@ CF.ruleset = {
   /* -- Cosmetic character-sheet stats (non-functional placeholders, set to
    * the reference screenshot so the "Your data" panel looks right) --------- */
   cosmeticStats: {
-    // A FRESH account: no fame, durability 27/27, Fighting shown as 0.00.
+    // A FRESH account: no fame, endurance 27/27, Fighting shown as 0.00.
     fame: 0, activityPct: 50, durabilityCur: 27, durabilityMax: 27,
     // Only the stats we don't simulate live are listed here; the real skills
-    // (Crafting, Blacksmithing, Chemist, Stealing, Gardening, Power, Durability)
+    // (Crafting, Smithing, Chemist, Stealing, Gardening, Strength, Endurance)
     // read their level from state, so their numbers here are just placeholders.
     rows: [
-      ["Fighting", "0.00"], ["Weapon handling", "1"], ["Protection", "10"],
-      ["Power", "10"], ["Speed", "10"], ["Skill", "10"], ["Cooking", "1"],
+      ["Fighting", "0.00"], ["Weapon handling", "1"], ["Defence", "10"],
+      ["Strength", "10"], ["Speed", "10"], ["Dexterity", "10"], ["Cooking", "1"],
       ["Gardening", "1"], ["Stealing", "1"], ["Chemist", "1"], ["Crafting", "1"],
-      ["Blacksmithing", "1"], ["Medical science", "1"], ["Mining", "1"],
+      ["Smithing", "1"], ["Medical science", "1"], ["Mining", "1"],
     ],
   },
 };

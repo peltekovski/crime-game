@@ -151,7 +151,7 @@ CF.blacksmith = (function () {
    * warehouse output (Steel plate), and Nuclear's extra money cost. */
   function forge(name, qty) {
     var r = recipe(name); if (!r) return fail("Choose an item to forge.");
-    if (r.level > forgingProgress().level) return fail(name + " needs Blacksmithing level " + r.level + ".");
+    if (r.level > forgingProgress().level) return fail(name + " needs Smithing level " + r.level + ".");
     qty = Math.floor(qty);
     if (!(qty > 0)) return fail("Pick a quantity.");
     if (qty > anvilLevel()) return fail("Your anvil forges at most " + anvilLevel() + " at once.");
@@ -204,7 +204,7 @@ CF.blacksmith = (function () {
     return ok("Sold " + fmt(q) + " " + name + " for " + fmt(Math.round(q * item.price)) + " CC.");
   }
 
-  /* Anvil upgrade: needs Blacksmithing level, House level and the material price. */
+  /* Anvil upgrade: needs Smithing level, House level and the material price. */
   function upgradeStatus() {
     var u = CF.anvilUpgrade, prog = forgingProgress();
     return {
@@ -216,7 +216,7 @@ CF.blacksmith = (function () {
   }
   function upgradeAnvil() {
     var s = upgradeStatus(), u = CF.anvilUpgrade;
-    if (!s.forgingOk) return fail("Needs Blacksmithing level " + u.reqForging + " (you are " + forgingProgress().level + ").");
+    if (!s.forgingOk) return fail("Needs Smithing level " + u.reqForging + " (you are " + forgingProgress().level + ").");
     if (!s.houseOk) return fail("Needs House level " + u.reqHouseLevel + ".");
     if (!s.matOk) return fail("Needs " + fmt(u.priceQty) + " kg " + u.priceMat + ".");
     consumeMat(u.priceMat, u.priceQty);

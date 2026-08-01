@@ -1,22 +1,22 @@
 /* ============================================================================
  * sports.js — The Sports complex: five facilities that train the body stats.
  * ----------------------------------------------------------------------------
- *   Forest Trail  -> Durability, by REAL-TIME running (pick a duration, wait)
- *   Gym           -> Power, by lifting (spends Hand energy, +5/hour)
+ *   Forest Trail  -> Endurance, by REAL-TIME running (pick a duration, wait)
+ *   Gym           -> Strength, by lifting (spends Hand energy, +5/hour)
  *   Sports shop   -> equipment (wears out, adds "duration" points), steroids, passes
- *   Boxing Hall   -> Skill/Protection — needs a purchased pass (Speed 15+)
- *   Stadium       -> Speed — needs a purchased ticket (Power 20+)
+ *   Boxing Hall   -> Dexterity/Defence — needs a purchased pass (Speed 15+)
+ *   Stadium       -> Speed — needs a purchased ticket (Strength 20+)
  * Equipment is CONSUMED by training: running spends boots, lifting spends lifts.
  * ========================================================================== */
 window.CF = window.CF || {};
 
 /* The five facilities, in reference order. `access` is computed at render time. */
 CF.sportsFacilities = [
-  { id: "gym",     name: "Gym",                 trains: "Power" },
+  { id: "gym",     name: "Gym",                 trains: "Strength" },
   { id: "shop",    name: "Sports shop",         trains: null },
-  { id: "boxing",  name: "Boxing Hall",         trains: "Skill" },
+  { id: "boxing",  name: "Boxing Hall",         trains: "Dexterity" },
   { id: "stadium", name: "Stadium",             trains: "Speed" },
-  { id: "trail",   name: "Forest Trail",        trains: "Durability" },
+  { id: "trail",   name: "Forest Trail",        trains: "Endurance" },
 ];
 
 /* Equipment shelf (the "Equipment / Duration" panel). unit = what it's counted in. */
@@ -43,8 +43,8 @@ CF.sportsShop = [
   { label: "Handcuffs",         item: "Handcuffs",         adds: 20,  price: 750000 },
   { label: "Boxing gloves",     item: "Boxing gloves",     adds: 20,  price: 850000 },
   { label: "5 steroids",        item: "Steroids",          adds: 5,   price: 30000000, note: "1 per day", oncePerDay: true },
-  { label: "ENTER Gym",         pass: "gym",     price: 250000,  req: { stat: "Durability", level: 30 } },
-  { label: "ENTER Stadium",     pass: "stadium", price: 650000,  req: { stat: "Power", level: 20 } },
+  { label: "ENTER Gym",         pass: "gym",     price: 250000,  req: { stat: "Endurance", level: 30 } },
+  { label: "ENTER Stadium",     pass: "stadium", price: 650000,  req: { stat: "Strength", level: 20 } },
   { label: "ENTER Boxing Hall", pass: "boxing",  price: 2500000, req: { stat: "Speed", level: 15 } },
 ];
 
@@ -72,7 +72,7 @@ CF.gymLifts = [
 /* Seeded to the reference screenshots. */
 /* FRESH ACCOUNT values (reference screenshots): every piece of equipment starts
  * at 200 points/lifts, you own 1 steroid, and NO facility pass — even the Gym
- * has to be bought. Durability starts at 27 with 16 points to the next level. */
+ * has to be bought. Endurance starts at 27 with 16 points to the next level. */
 CF.sportsStart = {
   durabilityLevel: 27, durabilityInto: 0,    // "you still need 16 points to level"
   powerLevel: 10, powerInto: 0,
@@ -88,15 +88,15 @@ CF.sports = (function () {
   var ok = function (m) { return { ok: true, msg: m }; };
   var fail = function (m) { return { ok: false, msg: m }; };
 
-  function durability() {
-    var lt = S().durabilityPoints || 0, lv = CF.formulas.levelFromLifetimeXPFor("Durability", lt);
+  function endurance() {
+    var lt = S().durabilityPoints || 0, lv = CF.formulas.levelFromLifetimeXPFor("Endurance", lt);
     return { level: lv.level, into: lv.into, lifetime: lt,
-             pointsToLevel: Math.max(0, CF.formulas.pointsToNextLevelFor("Durability", lv.level) - lv.into) };
+             pointsToLevel: Math.max(0, CF.formulas.pointsToNextLevelFor("Endurance", lv.level) - lv.into) };
   }
   function power() {
-    var lt = S().powerPoints || 0, lv = CF.formulas.levelFromLifetimeXPFor("Power", lt);
+    var lt = S().powerPoints || 0, lv = CF.formulas.levelFromLifetimeXPFor("Strength", lt);
     return { level: lv.level, into: lv.into, lifetime: lt,
-             pointsToLevel: Math.max(0, CF.formulas.pointsToNextLevelFor("Power", lv.level) - lv.into) };
+             pointsToLevel: Math.max(0, CF.formulas.pointsToNextLevelFor("Strength", lv.level) - lv.into) };
   }
   function equip(name) { return S().equipment[name] || 0; }
   function maxHandEnergy() { return CF.ruleset.sports.handEnergyMax; }
@@ -161,7 +161,7 @@ CF.sports = (function () {
     S().equipment["Lifting belt"] -= 1;
     S().equipment["Wristbands"] -= 1;
     S().powerPoints = (S().powerPoints || 0) + l.points;
-    var r = ok("You lifted and earned " + fmt(l.points) + " power points.");
+    var r = ok("You lifted and earned " + fmt(l.points) + " strength points.");
     r.pts = l.points; return r;
   }
   function eatSteroid() {
@@ -180,8 +180,8 @@ CF.sports = (function () {
     if (P().money < it.price) return fail("Not enough money (need " + fmt(it.price) + " CC).");
     if (it.pass) {
       if (S().passes[it.pass]) return fail("You already have that pass.");
-      var lvl = it.req.stat === "Power" ? power().level
-              : it.req.stat === "Durability" ? durability().level
+      var lvl = it.req.stat === "Strength" ? power().level
+              : it.req.stat === "Endurance" ? endurance().level
               : (CF.sportsStatic[it.req.stat] || 0);
       if (lvl < it.req.level) return fail("Requires " + it.req.stat + " " + it.req.level + "+ (you are " + lvl + ").");
       P().money -= it.price; S().passes[it.pass] = true;
@@ -198,7 +198,7 @@ CF.sports = (function () {
   }
 
   return {
-    durability: durability, power: power, equip: equip, access: access,
+    endurance: endurance, power: power, equip: equip, access: access,
     regenEnergy: regenEnergy, maxHandEnergy: maxHandEnergy,
     runState: runState, runSecondsLeft: runSecondsLeft, settleRun: settleRun,
     startRun: startRun, pauseRun: pauseRun,
@@ -207,4 +207,4 @@ CF.sports = (function () {
 })();
 
 /* Static body stats we don't train yet (their facilities are locked). */
-CF.sportsStatic = { "Speed": 10, "Skill": 10, "Protection": 10, "Weapon handling": 2 };
+CF.sportsStatic = { "Speed": 10, "Dexterity": 10, "Defence": 10 };
