@@ -3061,8 +3061,10 @@
         '<div class="hs-stats">' +
           '<div class="hs-mv barline">' + barLine("Villa moves", mv, mx) + "</div>" +
           '<div class="hs-sp"><b>' + fmt(left) + "</b> steal points to level up</div>" +
-          (CF.houses.items() > 0
-            ? '<div class="hs-sp">Stolen items in your backpack: <b>' + fmt(CF.houses.items()) + "</b></div>" : "") +
+          /* What you steal goes straight to the bank, so there is no backpack to
+             report on. Show what the run has actually built instead. */
+          '<div class="hs-sp">Bank items held: <b>' + fmt(CF.bank.itemTotal()) +
+            "</b> of " + fmt(CF.bankItems.count) + "</div>" +
         "</div>" +
       "</div>") +
       '<div id="hsNotice" class="notice-slot">' + houseNoticeHtml() + "</div>" +
@@ -3437,6 +3439,14 @@
       '<span class="bl-bar"><span class="ebar"><i style="width:' + (v / max * 100) + '%"></i></span></span>' +
       '<span class="bl-val">' + fmt(v) + "/" + fmt(max) + "</span>";
   }
+  /* Cold weapons collected from villas and sewer chests. They are counted and
+     kept, but nothing consumes them yet — the account row says so rather than
+     implying a system that is not there. */
+  function armsTotal() {
+    var a = CF.houses.arms(), t = 0;
+    for (var k in a) t += a[k] || 0;
+    return t;
+  }
   function gearLine(label, val) {
     return barLine(label, val, CF.ruleset.perUpdate.gearMax);
   }
@@ -3491,10 +3501,16 @@
           { act: "go-houses", html: gearLine("Villa moves", CF.state.houseGear) },
           { act: "go-houses", html: gearLine("Sewer moves", CF.state.sewerGear) }
         ].concat(
-          // an empty backpack is not news — the row only earns its place with something in it
-          CF.houses.items() > 0
-            ? [{ act: "go-houses", html: "You have <b>" + fmt(CF.houses.items()) + "</b> stolen items in your backpack" }]
-            : []
+          /* Loot goes straight to the bank, so report what you actually hold.
+             Each row only earns its place once there is something in it. */
+          CF.bank.itemTotal() > 0
+            ? [{ act: "go-bank", html: "You hold <b>" + fmt(CF.bank.itemTotal()) + "</b> of the <b>" +
+                 fmt(CF.bankItems.count) + "</b> bank items" }] : [],
+          CF.vaults.totalHeld() > 0
+            ? [{ act: "go-bank", html: "Your vaults hold <b>" + fmt(CF.vaults.totalHeld()) + "</b> treasures" }] : [],
+          armsTotal() > 0
+            ? [{ act: "go-houses", html: "You have <b>" + fmt(armsTotal()) +
+                 "</b> cold weapons (nothing uses them yet)" }] : []
         )) : "") +
         /* No Hospital box here: endurance already has a row in the sidebar, and
            a panel that only repeats it is noise. It comes back when the
@@ -3510,7 +3526,11 @@
             ? [{ act: "go-harbor", html: harborRefitLine() }, { act: "go-harbor", html: harborTripLine() }]
             : [{ act: "go-harbor", html: "The old fisherman still has a ship for sale" }]
         ).concat(
-          B.bankItems         ? ["You can maintain <b>5</b> more bank items"] : [],
+          /* Live now that the bank is built — this used to be a hardcoded "5"
+             behind a flag, and it is the real allowance. */
+          CF.bank.owned() && CF.bank.itemTotal()
+            ? [{ act: "go-bank", html: "You can maintain <b>" + CF.bank.maintainLeft() +
+                 "</b> more bank items this hour" }] : [],
           B.casinoCoupons     ? ["You have <b>24</b> more casino coupons"] : [],
           B.marketHandicrafts ? ["You can still buy <b>100,000</b> handicrafts at the market"] : [],
           B.marketMedical     ? ["You can still buy <b>10,000</b> medical supplies from the market"] : []

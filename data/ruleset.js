@@ -240,7 +240,7 @@ CF.ruleset = {
     mining:            false,   // Mining location + the battery/map panel
     hospital:          true,    // Hospital — TREATMENT ONLY so far, see ruleset.hospital
     houseSewer:       true,    // Villas and sewer — the street map is built
-    bankItems:         false,   // "maintain N more bank items"
+    bankItems:         true,    // the bank's item collection — BUILT
     casinoCoupons:     false,   // "N more casino coupons"
     marketHandicrafts: false,   // buying handicrafts at the market
     marketMedical:     false,   // buying medical supplies at the market

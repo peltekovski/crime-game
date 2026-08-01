@@ -132,10 +132,20 @@ CF.loadLateGame = function () {
   s.sewerGear = CF.ruleset.perUpdate.gearMax;
   s.houseGear = CF.ruleset.perUpdate.gearMax;
   s.medicine.kits = 12;                        // enough to test hospital healing
-  // stock the warehouses so the tavern loop is immediately usable
-  CF.materials.forEach(function (m) { s.inv.materials[m] = 5000; });
-  CF.rawJuices.forEach(function (j) { s.inv.rawJuice[j] = 2000; });
+  /* Stock the warehouses so the tavern loop is immediately usable — but RESPECT
+   * THE SHARED CAP. A flat 5,000 a line put 190,000 units against a 12,080 cap,
+   * which is not "well stocked", it is a profile that cannot buy or press
+   * anything until you sell most of it back. Fill to ~90% and spread it evenly. */
+  var matCap = CF.formulas.warehouseCap("materials", p.drinkMasterLevel);
+  var juiceCap = CF.formulas.warehouseCap("rawjuice", p.drinkMasterLevel);
+  var perMat = Math.floor(matCap * 0.9 / CF.materials.length);
+  var perJuice = Math.floor(juiceCap * 0.9 / CF.rawJuices.length);
+  CF.materials.forEach(function (m) { s.inv.materials[m] = perMat; });
+  CF.rawJuices.forEach(function (j) { s.inv.rawJuice[j] = perJuice; });
   CF.craftMaterialOrder.forEach(function (k) { s.craft.supplies[k] = 5000; });
+  // and some finished drinks, or the first update sells nothing and the tavern
+  // looks broken on arrival
+  CF.finishedNames.slice(0, 12).forEach(function (n) { s.inv.finished[n] = 400; });
   CF.autosave();
   return s;
 };

@@ -12,13 +12,10 @@
  * the user described — money by far the most common, then a greenhouse ticket,
  * then the bank item, with fighting equipment rare.
  *
- * Bank items and equipment have nowhere to live yet, so a steal that rolls one
- * banks a COUNT and says what it was. The item names are already listed below
- * (CF.bankItemNames) so identifying them lands ready-made when the bank side is
- * built; nothing reads them yet on purpose.
- *
- * The sewer entrances (manholes) are drawn and clickable, and say the sewer is
- * not built. That is the next room.
+ * WHERE THE LOOT GOES. A stolen item is a numbered BANK item and goes straight
+ * into the bank's collection (a duplicate stacks in its warehouse). Fighting
+ * equipment is a COLD WEAPON and goes into the weapon rack, CF.state.arms.
+ * Neither passes through a backpack.
  * ========================================================================== */
 window.CF = window.CF || {};
 
@@ -73,16 +70,6 @@ CF.coldWeapons = [
   { name: "Katana",         lvl: 27 }, { name: "Battle axe",      lvl: 34 },
 ];
 
-/* Bank-vault items. A treasure chest in the sewer IS one of these: the
- * reference says "You found treasure chest item No. 11 on the ground! This was
- * delivered to you in the bank vault", so chests never enter your backpack —
- * they go straight to the vault, numbered by their place in this list. */
-CF.bankItemNames = [
-  "Bronze bear sculpture", "Mystical Magic Mirror", "Mirror from Atlantis",
-  "Yellowish golden palms", "Namibian cacti", "Gold Dust Hourglass",
-  "Ebony Venetian Blinds", "Carved ivory chess set", "Silver samovar",
-  "Persian floor vase", "Amber writing set", "Brass ship's clock",
-];
 
 /* ============================================================================
  * THE SEWER — six levels under the villas, reached through a manhole.
@@ -688,8 +675,16 @@ CF.houses = (function () {
       sub = dupV ? "You already have one — this copy went to the bank warehouse."
                  : "This was added to your bank items.";
     } else {
-      H().equipment = (H().equipment || 0) + 1;
-      msg = "You stole a piece of fighting equipment from the house.";
+      /* Fighting equipment is a COLD WEAPON, the same rack the sewer's finds go
+         into. It used to increment a counter nothing read, so roughly one steal
+         in fifty produced loot that silently disappeared. A villa yields from
+         the shallow end of the ladder. */
+      var wpool = CF.coldWeapons.filter(function (w) { return w.lvl <= 8; });
+      var wp = wpool[Math.floor(Math.random() * wpool.length)];
+      arms()[wp.name] = (arms()[wp.name] || 0) + 1;
+      H().equipment = (H().equipment || 0) + 1;   // lifetime tally, shown on the map header
+      msg = "You stole a cold weapon from the house: " + wp.name + " (Level " + wp.lvl + ")";
+      sub = "A new weapon has been added to your inventory!";
     }
 
     H().robbed[key(x, y)] = true;
