@@ -29,7 +29,11 @@ window.CF = window.CF || {};
  * The 4:3 tile is what gives that map its slightly flattened, almost-isometric
  * look; square tiles read as a chessboard however they are painted. */
 CF.houseMap = {
-  blocksX: 8, blocksY: 5,        // 8 x 5 = 40 blocks
+  /* 7 x 4 = 28 blocks, down from 8 x 5 = 40. The district was dense enough that
+   * a run never ran out of houses, which made the move budget the only limit
+   * and the map itself scenery. About a third fewer, so a floor of the district
+   * is something you can actually work through. */
+  blocksX: 7, blocksY: 4,
   lotW: 2, lotH: 4,              // one block
   viewW: 15, viewH: 15,          // 600 x 450 — odd, so you sit exactly in the middle
   /* 15 is the largest odd view that fits the content column (676px) WITHOUT
@@ -477,6 +481,14 @@ CF.houses = (function () {
     var mDmg = s.dmgBase * Math.pow(s.dmgRatio, mon.tier);
     var scale = Math.pow(s.hpRatio, mon.tier);        // the reward follows health
     var myHp = CF.sports.enduranceCur(), rounds = 0, taken = 0;
+    /* The upset roll. Even a fight you should win can go wrong — see
+       ruleset.sewer.upsetChance. Rolled up front so the outcome is decided
+       honestly rather than by nudging the numbers mid-fight. */
+    if (Math.random() < s.upsetChance) {
+      P().durabilityCur = 0;
+      return fail("The " + mon.name.toLowerCase() + " caught you badly. Your endurance is gone" +
+                  " — you need a hospital before you fight again.");
+    }
     while (mHp > 0 && myHp > 0 && rounds++ < 60) {
       mHp -= Math.max(1, Math.round(me.dmg * (0.75 + Math.random() * 0.5)));
       if (mHp <= 0) break;
@@ -565,7 +577,7 @@ CF.houses = (function () {
       r.sub = "A new weapon has been added to your inventory!";
       return r;
     }
-    var amt = sr.minCC + Math.floor(Math.random() * (sr.maxCC - sr.minCC + 1)) * level();
+    var amt = sr.minCC + Math.floor(Math.random() * (sr.maxCC - sr.minCC + 1));
     P().money += amt;
     return ok("You prised open the chest and took " + fmt(amt) + " CC.");
   }
@@ -624,6 +636,10 @@ CF.houses = (function () {
   }
 
   function walkTo(x, y) {
+    /* Flat on your back, you do not get to keep exploring the tunnels. Losing a
+     * fight ends the trip: the way out is the hospital, not another few steps. */
+    if (inSewer() && CF.sports.enduranceCur() <= 0)
+      return fail("Your endurance is gone — you cannot move down here until a hospital treats you.");
     var dist = distances(), d = dist[key(x, y)];
     if (d == null) return fail("You cannot get there from here.");
     if (d === 0) return fail("You are already there.");

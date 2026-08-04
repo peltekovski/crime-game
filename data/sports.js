@@ -112,6 +112,15 @@ CF.sports = (function () {
   function enduranceCur() {
     var p = P(), max = enduranceMax();
     if (p.durabilityCur == null) p.durabilityCur = max;
+    /* LEVELLING UP GROWS THE BAR AND FILLS THE NEW ROOM. Training endurance
+     * from 27 to 31 used to leave you at 27/31 — the bar got bigger but what
+     * was in it did not, so a character who had done nothing but train came out
+     * of it "injured" and was sent to the hospital. Whatever the bar gains,
+     * you gain: 27/27 becomes 31/31, and a genuine injury (say 12/27) still
+     * reads as an injury afterwards (16/31). */
+    var known = p.durabilityMaxSeen == null ? max : p.durabilityMaxSeen;
+    if (max > known) p.durabilityCur = (p.durabilityCur || 0) + (max - known);
+    p.durabilityMaxSeen = max;
     if (p.durabilityCur > max) p.durabilityCur = max;    // never above the bar
     p.durabilityMax = max;                               // kept as a mirror for saves
     return Math.max(0, p.durabilityCur);

@@ -32,10 +32,17 @@ CF.craftMaterialOrder = [
 
 /* Station id -> heading shown above the work panel. The room link says
  * "Furnaces" but the panel itself is headed "Ovens" in the reference. */
+/* Each bench needs its own HAND TOOLS before you can work at it. A fresh
+ * account owns none of them — they are bought one-off at the market's Craft
+ * supplies counter — so the first thing a new player has to do is kit out the
+ * bench they want to use. */
 CF.craftStations = [
-  { id: "armchair",    link: "Armchair",           panel: "Armchair" },
-  { id: "woodworking", link: "Woodworking corner",  panel: "Woodworking corner" },
-  { id: "furnaces",    link: "Furnaces",            panel: "Ovens" },
+  { id: "armchair",    link: "Armchair",           panel: "Armchair",
+    tools: ["Needle", "Conversation knife", "Scissors"] },
+  { id: "woodworking", link: "Woodworking corner",  panel: "Woodworking corner",
+    tools: ["Hammer", "Bandsaw"] },
+  { id: "furnaces",    link: "Furnaces",            panel: "Ovens",
+    tools: ["Blacksmith pliers", "Brush"] },
 ];
 
 /* { s:station id, name, lvl, pts, mats:[short names] } */
@@ -47,7 +54,10 @@ CF.craftItems = [
   { s: "furnaces",    name: "Iron",                      lvl: 16,  pts: 121,    mats: ["Iron"] },
   { s: "armchair",    name: "Wristbands",                lvl: 20,  pts: 190,    mats: ["Thread", "Cloth"] },
   { s: "woodworking", name: "Wooden dice",               lvl: 24,  pts: 299,    mats: ["Wood", "Paint"] },
-  { s: "furnaces",    name: "Candlestick",               lvl: 28,  pts: 469,    mats: ["Pewter", "Iron"] },
+  /* "Pewter" was the material's own name here while every other recipe calls the
+   * same supply "Tin" — one material under two names. It consumes Tin pieces,
+   * so it says Tin. */
+  { s: "furnaces",    name: "Candlestick",               lvl: 28,  pts: 469,    mats: ["Tin", "Iron"] },
   { s: "armchair",    name: "Builder's Gloves",          lvl: 32,  pts: 736,    mats: ["Thread", "Cloth"] },
   { s: "furnaces",    name: "Syringe",                   lvl: 36,  pts: 1155,   mats: ["Plastic"] },
   { s: "woodworking", name: "Plank",                     lvl: 40,  pts: 4812,   mats: ["Wood"] },

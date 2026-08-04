@@ -161,7 +161,11 @@ CF.ruleset = {
   /* pointsPerKill 2, not 3: the reference's own kill notices read "You earned 2
    * weapon handling points" and "...3...", and 2 x hpRatio^tier gives exactly 2
    * at the shallow end and 3 by the bottom of floor 1. */
-  sewer: { pointsPerKill: 2, minCC: 2000, maxCC: 9000,
+  /* A chest that pays cash pays 500,000 to 1,000,000 CC, flat — it does NOT
+   * scale with depth any more. The old 2,000-9,000 band multiplied by the floor
+   * was worth less than a single villa and made cash chests feel like a
+   * consolation prize. */
+  sewer: { pointsPerKill: 2, minCC: 500000, maxCC: 1000000,
            /* Tunnels are CROWDED — the reference's floor has something to fight
             * every few tiles. You are not meant to clear it, only to pick which
             * fights your endurance can pay for. */
@@ -207,7 +211,13 @@ CF.ruleset = {
             *
             * Fitted to two anchors: a fresh character kills up to about level
             * 14 on floor 1, and floor 2 opens at Weapon handling 15. */
-           hpBase: 35, dmgBase: 8, hpRatio: 1.05, dmgRatio: 1.125 },
+           hpBase: 35, dmgBase: 8, hpRatio: 1.05, dmgRatio: 1.125,
+           /* NOTHING IS EVER A CERTAINTY. Even a fight the maths says you win
+            * comfortably carries this chance of going wrong — the monster gets
+            * a lucky round and you come out on the floor. Small enough that
+            * farming easy kills is still the right idea, big enough that you
+            * never stop checking your endurance before a long run. */
+           upsetChance: 0.04 },
 
   /* -- Slum area passes, sold at the market's Ticket counter. The counter's own
    * prices weren't captured, so these are PLACEHOLDERS — swap them for the real
@@ -283,6 +293,10 @@ CF.ruleset = {
              * full day costs about a tenth of the garden, so clearing it the
              * moment watering turns it up keeps losses near zero. */
             pestKillChancePerHour: 0.004,
+            /* Clearing a pest puts the tool out of action for an hour, so an
+             * infestation is something you manage rather than wave away the
+             * moment it appears. */
+            pestCooldownSec: 3600,
             ediblePointsBase: 11, fruitPerPlant: 20,
             /* Culinary exchange (Slum market): swap a field crop for the
              * greenhouse fruit of the same level, 1:1, plus a brokerage fee of

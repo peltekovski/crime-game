@@ -792,13 +792,21 @@
     if (o.levelUp != null && o.levelUp !== false) {
       var lu = o.levelUp, skill = o.skill || (lu && lu.skill), level = (lu && lu.level != null) ? lu.level : lu;
       h += '<div class="levelup">Your ' + esc(String(skill).toLowerCase()) + " level is now <b>" + fmt(level) + "</b>.</div>";
+    } else if (o.reserveLevelUp) {
+      /* Hold the level-up line's exact height even when there is no level-up,
+         so the panel below never shifts when one appears. A fixed min-height in
+         CSS was a guess that broke the moment the font metrics changed; this is
+         the real line, just invisible. */
+      h += '<div class="levelup" style="visibility:hidden">&nbsp;</div>';
     }
     return h + (o.after || "");
   }
 
   function craftNoticeHtml() {
+    /* Both lines are always reserved: the Craft button must not move when a
+       level-up banner appears under a rapid click. */
     return noticeHtml({ err: ui.craftError, msg: ui.craftMadeNotice, reserve: true,
-                        levelUp: ui.craftLevelUp, skill: "Crafting" });
+                        reserveLevelUp: true, levelUp: ui.craftLevelUp, skill: "Crafting" });
   }
   function stMaterialsHtml(stId) {
     return CF.craft.materialsFor(stId).map(function (k) {
@@ -827,12 +835,29 @@
         ">Level " + i.lvl + " - " + esc(i.name) + " (" + esc(i.mats.join(" + ")) + ")" + (lock ? "  🔒" : "") + "</option>";
     }).join("");
 
+    /* Which tools this bench needs, and whether you have them. Without them the
+       bench cannot be worked at all, so say so plainly instead of letting the
+       player pick an item and be refused. */
+    var needTools = CF.craft.missingTools(st.id);
+    var toolLine = st.tools
+      ? '<div class="st-tools' + (needTools.length ? " missing" : "") + '">Tools: ' +
+        st.tools.map(function (t) {
+          return '<span class="' + (CF.craft.hasTool(t) ? "have" : "want") + '">' + esc(t) + "</span>";
+        }).join(", ") +
+        (needTools.length
+          ? '<div class="nb">NOTE! You cannot work here until you own ' + needTools.join(" and ") +
+            '. They are sold at the <a data-act="market-craft">Craft supplies counter</a>.</div>'
+          : "") + "</div>"
+      : "";
+
     $("locationPanel").innerHTML = craftsRoomHeader("") +
-      '<div id="craftNotice" class="notice-slot">' + craftNoticeHtml() + "</div>" +
+      '<div id="craftNotice" class="notice-slot craft-notice">' + craftNoticeHtml() + "</div>" +
       '<div class="station">' +
         '<div class="st-left"><div class="bar">' + esc(st.panel) + "</div>" +
-          '<div class="st-body"><select id="craftItemSel" data-role="craftitem">' + opts + "</select>" +
-          '<div class="cbtn"><button class="btn" data-act="craft-make">Craft</button></div></div>' +
+          '<div class="st-body">' + toolLine +
+          '<select id="craftItemSel" data-role="craftitem">' + opts + "</select>" +
+          '<div class="cbtn"><button class="btn" data-act="craft-make"' +
+            (needTools.length ? " disabled" : "") + ">Craft</button></div></div>" +
           '<div id="stProgress">' + craftProgressTable() + "</div>" +
         "</div>" +
         '<div class="st-right"><div class="bar">Materials</div><table class="ctab" id="stMaterials">' + stMaterialsHtml(st.id) + "</table>" +
@@ -875,11 +900,15 @@
       return '<tr class="sellrow"><td colspan="5"><div class="sellbox">' +
         "This item can't be sold yet — its price isn't known.</div></td></tr>";
     }
-    var q = ui.finishedQty != null ? ui.finishedQty : "1";
+    /* Default to EVERYTHING you hold, not 1 — selling one at a time was the
+       common case and the box always started at the least useful number. */
+    var held = CF.state.craft.made[ui.finishedSel] || 0;
+    var q = ui.finishedQty != null ? ui.finishedQty : String(held);
     var qn = parseFloat(q) || 0;
     return '<tr class="sellrow"><td colspan="5"><div class="sellbox">' +
       '<div class="sq">How many items do you want to sell?</div>' +
-      '<div class="sqline">Quantity: <input type="number" id="sellQty" data-role="sellqty" min="1" value="' + esc(q) + '"> ' +
+      '<div class="sqline">Quantity: <input type="number" id="sellQty" data-role="sellqty" min="1" max="' + held +
+        '" value="' + esc(q) + '"> ' +
         "x " + fmt(price) + ' = <b id="sellTotal">' + fmt(qn * price) + "</b> CC " +
         '<button class="btn" data-act="sell-finished">Sell</button></div>' +
       "</div></td></tr>";
@@ -2346,9 +2375,10 @@
       /* The hours are counted in updates, so the finish time is a clock time —
        * show it, or "1 hour" looks broken when it lands 20 minutes later. */
       return '<div class="run-opt" data-act="run-opt" data-hours="' + o.hours + '">' +
-        '<input type="radio" name="runopt"' + (on ? " checked" : "") + "> " +
-        "<b>" + o.hours + "</b> hour" + (o.hours === 1 ? "" : "s") + " - trains <b>" + o.points + "</b> points and spends <b>" + o.boots + "</b> boots" +
-        ' <span class="run-ends">ends ' + hhmm(CF.clock.slotsAhead(o.hours)) + "</span></div>";
+        '<input type="radio" name="runopt"' + (on ? " checked" : "") + ">" +
+        '<span class="run-lbl"><b>' + o.hours + "</b> hour" + (o.hours === 1 ? "" : "s") +
+          " - trains <b>" + o.points + "</b> points, spends <b>" + o.boots + "</b> boots</span>" +
+        '<span class="run-ends">ends ' + hhmm(CF.clock.slotsAhead(o.hours)) + "</span></div>";
     }).join("");
     return '<div class="sp-need">You need <b>' + fmt(d.pointsToLevel) + "</b> more stamina points to level up.</div>" +
       '<div class="run-title">Choose running time:</div>' + opts +
@@ -2402,19 +2432,27 @@
     return '<table class="mktab"><tr><th>Sports equipment</th><th class="r">Price</th></tr>' + rows + "</table>";
   }
   function lockedPanel(id) {
-    return '<div class="sport-err"><b>ERROR!</b><div>' +
-      (id === "boxing" ? "You don't have a pass to the boxing gym!" : "You don't have a stadium ticket!") +
-      "</div><div class=\"sub\">Buy it at the Sports shop.</div></div>";
+    var msg = id === "boxing" ? "You do not have a pass to the boxing gym!"
+            : id === "gym"    ? "You do not have a pass to the gym!"
+            : "You do not have a stadium ticket!";
+    return '<div class="sport-err"><b>ERROR!</b><div>' + msg +
+      '</div><div class="sub">Buy it at the Sports shop.</div></div>';
   }
 
   function renderSports() {
     var done = CF.sports.settleRun();   // a finished run pays out on arrival
     if (done) { ui.sportNotice = "Your training finished — you gained " + fmt(done.points) + " stamina points."; CF.autosave(); }
     var fac = ui.sportsFac, panel;
-    if (fac === "gym") panel = gymPanel();
+    /* ACCESS IS CHECKED FIRST, for every facility. The gym used to render its
+       panel unconditionally, so anything that jumped straight to it — the
+       account overview's hand-energy row, for one — walked past the pass you
+       are supposed to buy. The Sports shop and the Forest Trail are the only
+       two that are open to everyone. */
+    if (CF.sports.access(fac) !== "ON") panel = lockedPanel(fac);
+    else if (fac === "gym") panel = gymPanel();
     else if (fac === "shop") panel = shopPanel();
     else if (fac === "trail") panel = trailPanel();
-    else panel = CF.sports.access(fac) === "ON" ? '<div class="garden-soon"><b>Not built yet</b></div>' : lockedPanel(fac);
+    else panel = '<div class="garden-soon"><b>Not built yet</b></div>';
 
     CF._svg.sport = SPORTS_ART;
     $("locationPanel").innerHTML =
@@ -3394,22 +3432,28 @@
     var land = CF.garden.landCooldownLeft(), med = CF.garden.nextMedSeconds();
     var box = CF.garden.ticketOfficeSecondsLeft(), wLeft = CF.garden.waterLeftThisHour();
 
-    rows.push({ act: "acc-garden", tab: "edible",
-      html: dry === null ? "There are <b>no</b> plants growing in your garden."
-                         : "The driest growing plant has a humidity of <b>" + fmt(dry) + "</b>" });
-    rows.push({ act: "acc-garden", tab: "edible",
-      html: "This hour you can water <b>" + fmt(wLeft) + "</b> more plants." });
-    if (nextEd !== null) {
+    /* Watering, land and growing only mean anything once you have taken the
+       gardener's job. Before that they were advertising a system you cannot
+       touch yet. The greenhouse and the ticket office are open to everyone, so
+       those rows stay. */
+    if (CF.garden.isGardener()) {
       rows.push({ act: "acc-garden", tab: "edible",
-        html: 'The time until the edible plant is ready is <b id="accEdible">' + hms(nextEd) + "</b>" });
-    }
-    if (CF.garden.edibleReady()) {
+        html: dry === null ? "There are <b>no</b> plants growing in your garden."
+                           : "The driest growing plant has a humidity of <b>" + fmt(dry) + "</b>" });
       rows.push({ act: "acc-garden", tab: "edible",
-        html: "<b>" + fmt(CF.garden.edibleReady()) + "</b> edible plant(s) ready to harvest" });
+        html: "This hour you can water <b>" + fmt(wLeft) + "</b> more plants." });
+      if (nextEd !== null) {
+        rows.push({ act: "acc-garden", tab: "edible",
+          html: 'The time until the edible plant is ready is <b id="accEdible">' + hms(nextEd) + "</b>" });
+      }
+      if (CF.garden.edibleReady()) {
+        rows.push({ act: "acc-garden", tab: "edible",
+          html: "<b>" + fmt(CF.garden.edibleReady()) + "</b> edible plant(s) ready to harvest" });
+      }
+      rows.push({ act: "acc-garden", tab: "edible",
+        html: land > 0 ? 'You can buy garden land from the office: <b id="accLand">' + hms(land) + "</b>"
+                       : "You can buy garden land from the office <b>NOW</b>" });
     }
-    rows.push({ act: "acc-garden", tab: "edible",
-      html: land > 0 ? 'You can buy garden land from the office: <b id="accLand">' + hms(land) + "</b>"
-                     : "You can buy garden land from the office <b>NOW</b>" });
     if (med !== null) {
       rows.push({ act: "acc-garden", tab: "medicinal",
         html: 'The time until the medicinal plant is ready is <b id="accMed">' + hms(med) + "</b>" });
@@ -3491,7 +3535,9 @@
           { act: "acc-sports", fac: "shop",
             html: steroidLeft > 0 ? 'You can buy steroids in the store: <b id="accSteroid">' + hms(steroidLeft / 1000) + "</b>"
                                   : "You can buy steroids in the store <b>NOW</b> !" },
-          { act: "acc-sports", fac: "gym", html: "Your power is <b>" + fmt(CF.sports.power().level) + "</b>, endurance <b>" + fmt(CF.sports.endurance().level) + "</b>" }]) +
+          /* No power/endurance row: both already have their own sidebar lines,
+             and repeating them here is noise. */
+        ]) +
         (showGarden ? box("Garden information", gardenAccRows()) : "") +
       "</div><div>" +
         (B.houseSewer ? box("Villas and sewer information", [
@@ -5135,7 +5181,10 @@
       case "house-finished":
         ui.place = "house"; ui.houseView = "finished"; renderPlace(); break;
       case "craft-make": fastCraft(); break;   // in-place update; button stays put
-      case "finished-row": ui.finishedSel = el.getAttribute("data-item"); ui.finishedQty = "1"; renderPlace(); break;
+      case "finished-row":
+        ui.finishedSel = el.getAttribute("data-item");
+        ui.finishedQty = null;          // null = "offer the whole stack"
+        renderPlace(); break;
       case "sell-finished": {
         var it = ui.finishedSel;
         var qEl = $("sellQty"); var q = qEl ? parseFloat(qEl.value) : 1;

@@ -1121,9 +1121,17 @@ input:focus, select:focus { outline: none; border-color: var(--link); }
   margin-bottom: 10px;
 }
 .run-title { text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 8px; }
-.run-opt { padding: 3px 6px; font-size: 12px; cursor: pointer; }
+.run-opt {
+  /* A ROW, not a paragraph. As inline text the label and the "ends HH:MM" tail
+     wrapped onto a second line even though together they are narrower than the
+     column; laid out as flex with the tail pushed right, it stays on one. */
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 3px 6px; font-size: 12px; cursor: pointer;
+  white-space: nowrap;
+}
+.run-opt > span.run-lbl { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .run-opt:hover { background: #e3e9ef; }
-.run-ends { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.run-ends { color: var(--muted); font-size: 11px; margin-left: auto; flex: none; }
 .sure { text-align: center; padding: 8px 0; font-size: 12px; font-weight: bold; }
 .run-live {
   text-align: center;
@@ -2291,3 +2299,26 @@ select:focus-visible,
 .vault-tbl th, .vault-info th { background: #d8e0e8; font-size: 10px; padding: 3px 4px; }
 .vault-info td { padding: 3px 6px; }
 .vault-info td:first-child { text-align: right; width: 60%; }
+
+/* ---- Crafts room: tool requirement + a notice slot that never moves ------
+   The Craft button used to shift down the moment a level-up banner appeared in
+   the notice slot above it, which throws off rapid clicking. Reserve the space
+   for both a notice line and a level-up line so the block never changes height. */
+
+.st-tools { margin: 0 0 8px; font-size: 11px; }
+.st-tools .have { font-weight: bold; }
+.st-tools .want { color: #9c1f16; text-decoration: line-through; }
+.st-tools.missing .nb { margin-top: 4px; }
+
+/* ---- Sports shop table -------------------------------------------------
+   `.mktab td` is `white-space: nowrap` for the market, where the column is
+   wide. In the Sports complex the same table sits in a narrower column, and
+   nowrap gives it an unshrinkable min-content width that pushed it ~10px past
+   the panel edge. Let the label column wrap here; the figures stay on one line.
+   (Appended at the end on purpose — equal-specificity rules earlier in this
+   file win otherwise, which has caught this project out repeatedly.) */
+.sport-cols .mktab td,
+.sport-cols .mktab th { white-space: normal; }
+.sport-cols .mktab td.c, .sport-cols .mktab td.r,
+.sport-cols .mktab th.c, .sport-cols .mktab th.r { white-space: nowrap; }
+.sport-cols .mktab { width: calc(100% - 12px); margin-left: 6px; margin-right: 6px; }

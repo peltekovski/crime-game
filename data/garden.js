@@ -324,12 +324,25 @@ CF.garden = (function () {
     return ok("Bought " + qty + " " + name + ".");
   }
   /* Pest control: one use of the matching tool clears that pest. */
+  /* How long until this pest can be treated again, in seconds. */
+  function pestCooldownLeft(key) {
+    var at = (G().pestClearedAt || {})[key] || 0;
+    return Math.max(0, Math.ceil((at + CF.ruleset.garden.pestCooldownSec * 1000 - Date.now()) / 1000));
+  }
   function clearPest(key) {
     var pe = null; CF.gardenPests.forEach(function (x) { if (x.key === key) pe = x; });
     if (!pe) return fail("Unknown pest.");
     if ((G().pests[key] || 0) <= 0) return fail("There are no " + pe.label.toLowerCase() + " in your garden.");
     if (toolCount(pe.tool) <= 0) return fail("You need a " + pe.tool + " — buy one at your office.");
+    var left = pestCooldownLeft(key);
+    if (left > 0) {
+      var mins = Math.ceil(left / 60);
+      return fail("The " + pe.tool.toLowerCase() + " needs another " + mins +
+                  " minute" + (mins === 1 ? "" : "s") + " before you can use it again.");
+    }
     G().pests[key] = 0;
+    G().pestClearedAt = G().pestClearedAt || {};
+    G().pestClearedAt[key] = Date.now();
     return ok("Cleared the " + pe.label.toLowerCase() + " from your garden.");
   }
 
@@ -457,6 +470,7 @@ CF.garden = (function () {
     toolCount: toolCount, settlePlots: settlePlots, plotReady: plotReady,
     sowEdible: sowEdible, waterPlots: waterPlots, harvestPlot: harvestPlot, removeDamaged: removeDamaged,
     installSprinklers: installSprinklers, buyLand: buyLand, buyTool: buyTool, clearPest: clearPest,
+    pestCooldownLeft: pestCooldownLeft,
     waterLeftThisHour: function () {
       if (G().waterHourSlot !== hourSlot()) return CF.ruleset.garden.waterPerHour;
       return Math.max(0, CF.ruleset.garden.waterPerHour - (G().wateredThisHour || 0));

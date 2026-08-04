@@ -163,6 +163,7 @@ CF.newGardenState = function () {
     medBeds: [], medicinalHarvest: {},        // sown beds + what's been harvested
     plots: [], harvest: {},                   // edible garden plots + harvested fruit
     tools: {}, pests: { caterpillars: 0, birds: 0, moles: 0 },
+    pestClearedAt: {},                        // pest key -> when it was last treated
     landBuyAt: 0, wateredThisHour: 0, waterHourSlot: -1,
     ticketReopenAt: Date.now() + g.ticketOfficeClosedForSec * 1000,
     landM2: g.landM2, landType: g.landType,

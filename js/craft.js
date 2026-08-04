@@ -90,9 +90,33 @@ CF.craft = (function () {
 
   /* Craft one item: consumes 1 of each material (OUR choice — quantities were
    * never shown), yields 1 unit, and awards the item's observed points. */
+  /* The bench an item is made at, and the tools that bench needs. */
+  function stationOf(id) {
+    var s = null;
+    CF.craftStations.forEach(function (x) { if (x.id === id) s = x; });
+    return s;
+  }
+  function toolsOwned() { return C().tools || (C().tools = {}); }
+  function hasTool(name) { return !!toolsOwned()[name]; }
+  /* Which of a bench's tools you are still missing. */
+  function missingTools(stationId) {
+    var s = stationOf(stationId);
+    if (!s || !s.tools) return [];
+    return s.tools.filter(function (t) { return !hasTool(t); });
+  }
+  function stationReady(stationId) { return missingTools(stationId).length === 0; }
+
   function craftItem(item) {
     if (!item) return fail("Choose an item to make.");
     if (!isUnlocked(item)) return fail(item.name + " needs Craft level " + item.lvl + ".");
+    /* You cannot work a bench without its tools. A fresh account owns none, so
+       this is the first wall a new player meets in the crafts room. */
+    var need = missingTools(item.s);
+    if (need.length) {
+      var f = fail("You need " + need.join(" and ") + " to work here — buy them at the market.");
+      f.missingTools = need;
+      return f;
+    }
     var miss = null;
     item.mats.forEach(function (m) {
       var key = CF.craftMaterialKey[m];
@@ -136,6 +160,7 @@ CF.craft = (function () {
     buyBackpack: buyBackpack, emptyBackpack: emptyBackpack,
     progress: progress, itemsFor: itemsFor, itemByName: itemByName,
     materialsFor: materialsFor, isUnlocked: isUnlocked, craftItem: craftItem,
+    stationOf: stationOf, hasTool: hasTool, missingTools: missingTools, stationReady: stationReady,
     sellFinished: sellFinished,
   };
 })();
