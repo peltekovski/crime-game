@@ -75,7 +75,11 @@ CF.harbor = (function () {
   /* Cost and time both scale with the CURRENT level of that upgrade. Fitted
    * from the reference's two readings: level 1 -> 10,001 CC / 12 h and
    * level 5 -> 13,125 CC / 16 h. */
-  function upgradeCost(key) { return CF.ruleset.harbor.upgradeBase + CF.ruleset.harbor.upgradeStep * (lvl(key) - 1); }
+  /* EXACT, from the shipyard: 10,000 + level^5. */
+  function upgradeCost(key) {
+    var h = CF.ruleset.harbor;
+    return h.upgradeFlat + Math.pow(lvl(key), h.upgradePower);
+  }
   function upgradeHours(key) { return CF.ruleset.harbor.upgradeHoursBase + lvl(key); }
   function refit() { return H().refit; }          // { key, endsAt, hours, cost } or null
   function refitLeft() { var r = refit(); return r ? Math.max(0, Math.round((r.endsAt - Date.now()) / 1000)) : 0; }

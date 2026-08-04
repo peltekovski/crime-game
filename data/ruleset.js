@@ -103,6 +103,25 @@ CF.ruleset = {
      *    economy grows. sellableTo mirrors the reference's own "items 1-170"
      *    for play money; 171-200 were credit-only, so they stay collection-only. */
     sellDivisor: 6, sellCapCC: 100000000, sellableTo: 170,
+    /* -- INTEREST, from the official bank page (a=5&l=13):
+     *   "Panga reputatsioon naitab, kui palju Sinu kliendid maksimaalselt raha
+     *    pangas hoiavad"  — REPUTATION IS THE CAP on what clients will deposit.
+     *   "Tunnis kasvab klientide hoitav rahasumma 1%" — client deposits grow
+     *    1% an hour, climbing towards that cap.
+     *   "Pank teenib iga tund selle vorra kui palju kliendid hetkel pangas
+     *    hoiavad" — the bank earns each hour in proportion to what they hold.
+     *    The page gives no rate for the earning itself, so it reuses the same 1%
+     *    it states for the growth. OURS, and the one number here to re-check.
+     *   "Kui kasvoi uhe eseme hooldus 0 langeb, sulgub pank kuniks seda eset
+     *    hooldad" — IF ANY ITEM'S CONDITION HITS 0 THE BANK CLOSES until you
+     *    maintain it. No income at all until then.
+     *
+     * reputationPerItem: the reference reads 30 items at bank level 2 with
+     * reputation 27,420,000, and 27,420,000 / (30 x 2) = 457,000 exactly. Both
+     * "items x level" and a flat "914,000 an item" fit that single reading; the
+     * level factor is used because the page says each bank level raises
+     * reputation. A second reading at another level would settle it. */
+    clientGrowthPerHour: 0.01, interestPerHour: 0.01, reputationPerItem: 457000,
   },
 
   /* -- Locations gated behind a HOUSE level (observed on a fresh account):
@@ -369,7 +388,13 @@ CF.ruleset = {
    * 24 minutes of fishing a level. Engine savings and the pirate raid are
    * OUR tuning. crewMax 5 = the reference's "How many?" dropdown. */
   // shipPriceCC 2,500,000 = the old fisherman's offer before you own a boat.
-  harbor: { shipPriceCC: 2500000, upgradeBase: 10001, upgradeStep: 781, upgradeHoursBase: 11,
+  /* -- Seaport. The refit ladder is EXACT, from the shipyard screenshot:
+   *      cost  = 10,000 + level^5      (L1 10,001 · L2 10,032 · L4 11,024 · L7 26,807)
+   *      hours = 11 + level            (L1 12h · L2 13h · L4 15h · L7 18h)
+   *    Both reproduce every visible row to the digit. The old linear
+   *    10,001 + 781*(level-1) matched only the first row and was far too cheap
+   *    later on — a fifth power means the last levels really cost something. */
+  harbor: { shipPriceCC: 2500000, upgradeFlat: 10000, upgradePower: 5, upgradeHoursBase: 11,
             holdsBase: [25, 20, 15], crewMax: 5,
             driveMinutesBase: 78 * 60 + 20, driveMinutesFloor: 60, engineMinutesPerLevel: 100,
             fishMinutesPerLevel: 24, pirateChance: 0.35, pirateKeep: 0.5 },

@@ -118,7 +118,12 @@ CF.sports = (function () {
      * of it "injured" and was sent to the hospital. Whatever the bar gains,
      * you gain: 27/27 becomes 31/31, and a genuine injury (say 12/27) still
      * reads as an injury afterwards (16/31). */
-    var known = p.durabilityMaxSeen == null ? max : p.durabilityMaxSeen;
+    /* Fall back to the stored durabilityMax, not to the CURRENT max: if the
+       level rose before this was ever read (a save loaded straight into a
+       higher level, or points awarded before any render), defaulting to the new
+       max would silently swallow the gain and leave you looking injured. */
+    var known = p.durabilityMaxSeen != null ? p.durabilityMaxSeen
+              : (p.durabilityMax || max);
     if (max > known) p.durabilityCur = (p.durabilityCur || 0) + (max - known);
     p.durabilityMaxSeen = max;
     if (p.durabilityCur > max) p.durabilityCur = max;    // never above the bar

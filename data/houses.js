@@ -554,13 +554,19 @@ CF.houses = (function () {
     delete cell.tt;
     var roll = Math.random(), r;
     if (roll < sr.chamberChance) {
-      /* TREASURE: a coin, a bar or a gemstone for the bank's vaults. How deep
-         you are sets how far up the 80-item chamber catalogue you can reach,
-         which lines up with the chambers' own unlock rule almost exactly —
-         chamber 2 wants all twenty silver coins and floor 2 is the first that
-         reaches them. */
-      var vspan = Math.max(1, Math.ceil(CF.vaultItems.count * level() / CF.sewer.maxLevel));
-      var vno = 1 + Math.floor(Math.random() * vspan);
+      /* TREASURE: a coin, a bar or a gemstone for the bank's vaults.
+         How far up the 80-item catalogue you can reach is set by how many VAULT
+         CHAMBERS you have opened, not by how deep you are — the official vault
+         page is explicit: one vault finds items 1-20, two finds 1-40, three
+         finds 1-55. */
+      var vno = 1 + Math.floor(Math.random() * CF.vaults.findableTo());
+      var vch = CF.vaultItems.chamber(vno);
+      if (vch && CF.vaults.chamberFull(vch)) {
+        var fullCash = sr.minCC + Math.floor(Math.random() * (sr.maxCC - sr.minCC + 1));
+        P().money += fullCash;
+        return ok("The chest held " + fmt(fullCash) + " CC — the " +
+                  vch.name.toLowerCase() + " is full.");
+      }
       CF.vaults.add(vno, 1);
       r = ok("You found treasure chest item No. " + vno + " on the ground!", { treasure: vno });
       r.sub = "This was delivered to you in the bank vault.";

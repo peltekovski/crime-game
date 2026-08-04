@@ -174,18 +174,52 @@ CF.bank = (function () {
               { done: done.length, skipped: nos.length - done.length });
   }
 
-  /* ---- Reputation --------------------------------------------------------
-   * The reference shows 27,420,000 at level 2 and never says what it does or
-   * how it is made. OURS: what the bank holds plus what its collection is
-   * worth, which at least moves for the reasons you would expect. Replace it
-   * the moment a second reading turns up. */
+  /* ---- Reputation, clients and interest ---------------------------------
+   * From the official bank page. Reputation is not decoration: it is the CAP on
+   * how much your clients will keep with you, and it comes from the items on
+   * display. Clients drift up towards that cap at 1% an hour, and the bank
+   * earns on what they hold.
+   *
+   * And the sharp edge: LET ONE ITEM ROT TO 0 AND THE BANK SHUTS. No interest
+   * at all until you have maintained it, which is what makes the upkeep matter
+   * rather than being a chore you can ignore. */
   function reputation() {
-    return Math.round((P().bank || 0) / 100 + vaultValue() / 10 + clientsHold() / 10);
+    return Math.round(itemTotal() * R().reputationPerItem * level());
   }
-  /* Other players' deposits. There are no other players here, so this stands
-   * in for them: it grows with the bank's level. OURS. */
   function clientsHold() {
-    return Math.round(12000000 * Math.pow(1.6, level() - 1));
+    var v = CF.state.bankClients;
+    if (v == null) v = CF.state.bankClients = 0;
+    return Math.min(v, reputation());
+  }
+  /* Any item worn all the way down shuts the doors. */
+  function rottedItems() {
+    return ownedNumbers().filter(function (n) { return condition(n) <= 0; });
+  }
+  function isClosed() { return owned() && rottedItems().length > 0; }
+
+  /* Interest is settled on arrival, by whole CLOCK HOURS, like everything else
+   * that ticks in this game. Returns what was paid. */
+  function settleInterest() {
+    var st = CF.state;
+    if (!owned()) { st.bankIntSlot = hourSlot(); return 0; }
+    settleCondition();                       // wear first: rot can close the bank
+    if (st.bankIntSlot == null) { st.bankIntSlot = hourSlot(); return 0; }
+    var hours = hourSlot() - st.bankIntSlot;
+    if (hours <= 0) return 0;
+    st.bankIntSlot = hourSlot();
+    if (isClosed()) return 0;                // shut: no growth, no earnings
+    var cap = reputation(), earned = 0;
+    for (var i = 0; i < hours && i < 8760; i++) {
+      var have = Math.min(st.bankClients || 0, cap);
+      /* Clients climb 1% an hour towards the cap. From nothing they would never
+         start, so a bank with no clients seeds at 1% of the cap. */
+      var next = have <= 0 ? cap * R().clientGrowthPerHour : have * (1 + R().clientGrowthPerHour);
+      st.bankClients = Math.min(cap, next);
+      earned += st.bankClients * R().interestPerHour;
+    }
+    earned = Math.round(earned);
+    if (earned > 0) P().bank = (P().bank || 0) + earned;
+    return earned;
   }
 
   /* ---- Upgrading ---------------------------------------------------------
@@ -238,6 +272,7 @@ CF.bank = (function () {
     itemValue: itemValue, vaultValue: vaultValue, reputation: reputation, clientsHold: clientsHold,
     owns: owns, ownedNumbers: ownedNumbers, priceless: priceless,
     owned: owned, buyPrice: buyPrice, buy: buy,
+    rottedItems: rottedItems, isClosed: isClosed, settleInterest: settleInterest,
     store: store, stored: stored, storeNumbers: storeNumbers, storeTotal: storeTotal,
     addToStore: addToStore, sellPrice: sellPrice, sellCapped: sellCapped, sellable: sellable,
     sell: sell, sellRange: sellRange,

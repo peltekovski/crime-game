@@ -120,6 +120,21 @@ CF.vaults = (function () {
   }
   function roomLeft(ch) { return CF.vaultCapacity - chamberTotal(ch); }
 
+  /* HOW FAR UP THE CATALOGUE YOU CAN FIND, from the official vault page:
+   * "owning one vault yields items 1-20. Collecting all 20 unlocks a second
+   * vault granting items 1-40. A third gives 1-55." So it is the number of
+   * CHAMBERS you have opened that sets the reach — not how deep in the sewer
+   * you are, which is what we assumed before. The ends line up with the
+   * chambers' own ranges exactly: 20, 40, 55, 70, 80. */
+  function findableTo() {
+    var open = openChambers();
+    return open.length ? open[open.length - 1].to : CF.vaultChambers[0].to;
+  }
+  /* The chambers fill up. When one is full you have to sell something cheap to
+   * make room for something better, which the page recommends in as many
+   * words. */
+  function chamberFull(ch) { return chamberTotal(ch) >= CF.vaultCapacity; }
+
   /* Selling. Treasure goes for cash on the spot, at the same rate the bank's
    * warehouse pays for its own stock, and under the same cap — see
    * ruleset.bank.sellDivisor / sellCapCC for why the cap is there. */
@@ -135,6 +150,11 @@ CF.vaults = (function () {
     n = Math.floor(n || 0);
     if (!(n > 0)) return fail("Enter how many to sell.");
     if (count(no) < n) return fail("You only have " + count(no) + " of " + CF.vaultItems.name(no) + ".");
+    /* Keep one of everything: parting with your last copy would shut the
+       chambers that depend on owning it. The page says to keep one of each. */
+    if (count(no) - n < 1)
+      return fail("Keep at least one " + CF.vaultItems.name(no) +
+                  " — selling your last one would close the chambers above it.");
     var got = sellPrice(no) * n;
     held()[no] -= n;
     if (held()[no] <= 0) delete held()[no];
@@ -149,5 +169,6 @@ CF.vaults = (function () {
     chamberItems: chamberItems, chamberDifferent: chamberDifferent,
     chamberTotal: chamberTotal, chamberValue: chamberValue, roomLeft: roomLeft,
     value: value, sellPrice: sellPrice, sellCapped: sellCapped, sell: sell,
+    findableTo: findableTo, chamberFull: chamberFull, capacity: CF.vaultCapacity,
   };
 })();

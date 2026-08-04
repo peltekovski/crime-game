@@ -2322,3 +2322,11 @@ select:focus-visible,
 .sport-cols .mktab td.c, .sport-cols .mktab td.r,
 .sport-cols .mktab th.c, .sport-cols .mktab th.r { white-space: nowrap; }
 .sport-cols .mktab { width: calc(100% - 12px); margin-left: 6px; margin-right: 6px; }
+
+/* The bank shuts if any item is left to rot — the page says so in as many
+   words, and it stops all income until you maintain it. */
+.bank-shut {
+  background: #7d1a12; color: #fff; padding: 8px 10px; margin: 0 0 8px;
+  font-size: 11px; line-height: 1.5; text-align: left;
+}
+.bank-shut a { color: #ffd9d4; text-decoration: underline; }

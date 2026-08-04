@@ -2480,10 +2480,20 @@
   /* The info block, line for line as the reference prints it. */
   function bankInfoHtml() {
     var B = CF.bank, p = CF.state.player;
+    var rot = B.rottedItems(), closed = rot.length > 0;
     return '<div class="bank-info">' +
+      (closed
+        ? '<div class="bank-shut"><b>THE BANK IS CLOSED.</b><br>' + rot.length +
+          " item" + (rot.length === 1 ? " has" : "s have") + " been left to rot, and the clients have " +
+          'gone. Nothing is earned until <a data-act="bank-room" data-room="items">every one of them is ' +
+          "maintained</a>.</div>"
+        : "") +
       "<p>You have <b>" + fmt(p.bank || 0) + "</b> CC in the bank<br>" +
       "Clients keep here <b>" + fmt(B.clientsHold()) + "</b> CC<br>" +
-      "The bank's reputation is <b>" + fmt(B.reputation()) + "</b><br>" +
+      "The bank's reputation is <b>" + fmt(B.reputation()) + "</b>" +
+        ' <span class="cc">(the most clients will ever deposit)</span><br>' +
+      "It earns <b>" + fmt(Math.round(B.clientsHold() * CF.ruleset.bank.interestPerHour)) +
+        "</b> CC an hour" + (closed ? " <b>&mdash; but not while it is closed</b>" : "") + "<br>" +
       "The value of the vaults is <b>" + fmt(CF.vaults.value()) + "</b> CC<br>" +
       "There are <b>" + fmt(CF.vaults.differentHeld()) + "</b> items in the vaults and <b>" +
       fmt(B.itemTotal()) + "</b> items in the bank</p>" +
@@ -2667,6 +2677,13 @@
       ((ui.vaultTab || "items") === "info" ? vaultInfoHtml() : vaultItemsHtml());
   }
   function renderBank() {
+    /* Interest is banked the moment you walk in — the same settle-on-arrival
+       pattern the garden, the harbour and the endurance run all use. */
+    var paidInt = CF.bank.settleInterest();
+    if (paidInt > 0 && !ui.bankNotice) {
+      ui.bankNotice = "Interest since your last visit: " + fmt(paidInt) + " CC.";
+      CF.autosave();
+    }
     /* You do not own the bank on a fresh account. Until you buy it there is an
        account to settle with and nothing else — no items, no vaults, no
        upgrading — so the page is just the offer and the two cash forms. */
@@ -4026,7 +4043,12 @@
             "<b>Vault treasure is a different catalogue</b>: 80 coins, bars and gemstones in five chambers, and " +
             'it comes out of the chests in the <a data-act="guide-pick" data-id="sewer">sewer</a>. A chamber only ' +
             "opens once you own every treasure numbered before it.",
-            "<b>The warehouse</b> holds your duplicates, and is the only place items turn back into cash."]) +
+            "<b>The warehouse</b> holds your duplicates, and is the only place items turn back into cash.",
+            "<b>The bank earns interest every hour.</b> Its reputation is the most your clients will ever " +
+            "deposit, and that reputation comes from the items on display — so a bigger collection is a " +
+            "bigger bank. Clients drift up towards the cap at 1% an hour and you earn on what they hold.",
+            "<b>Let one item rot to nothing and the bank shuts.</b> Not slows down: shuts, until you have " +
+            "maintained it. That is what the upkeep is for."]) +
           '<p class="g-note">Buying and trading items with other people is not here — that is going to the Slum ' +
           "with the rest of the market.</p>";
       } },
