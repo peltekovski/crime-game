@@ -457,7 +457,7 @@ CF.houses = (function () {
    * monster you cannot beat will empty you, which is the warning to go shallower. */
   function fightPower() {
     var wh = weaponHandling().level, f = parseFloat(CF.formulas.fightingValue ? 0 : 0) || 0;
-    var body = (CF.sportsStatic["Speed"] + CF.sports.power().level + CF.sports.endurance().level +
+    var body = (CF.sports.speed().level + CF.sports.power().level + CF.sports.endurance().level +
                 CF.sportsStatic["Defence"] + CF.sportsStatic["Dexterity"] + wh) / 6;
     return { wh: wh, body: body, dmg: 5 + wh * 2.5 + body * 0.7 };
   }

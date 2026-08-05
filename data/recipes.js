@@ -21,7 +21,7 @@ window.CF = window.CF || {};
 
 CF.recipes = [
   /* ---- Kitchen (tea / coffee / milk) ------------------------------------ */
-  { s: "Kitchen", lvl: 1,  name: "Filtered water",   ing: ["Water"] },
+  { s: "Kitchen", lvl: 1,  name: "Filtered Water",   ing: ["Water"] },
   { s: "Kitchen", lvl: 7,  name: "Milk",             ing: ["Water", "Raw Milk"] },
   { s: "Kitchen", lvl: 9,  name: "Black Tea",        ing: ["Tea Leaves", "Water"] },
   { s: "Kitchen", lvl: 11, name: "Coffee",           ing: ["Water", "Coffee Beans"] },
@@ -35,27 +35,31 @@ CF.recipes = [
   { s: "Kitchen", lvl: 53, name: "Blackcurrant Tea", ing: ["Blackcurrants", "Water"] },
 
   /* ---- Wine cellar (beers, wines) --------------------------------------- */
-  { s: "Cellar", lvl: 2,  name: "Light home beer",         ing: ["Barley", "Water", "Yeast", "Sugar"] },
-  { s: "Cellar", lvl: 5,  name: "Kali",                    ing: ["Barley", "Water", "Yeast", "Sugar"] },
-  { s: "Cellar", lvl: 10, name: "Blackcurrant wine",       ing: ["Blackcurrant Juice"] },
+  { s: "Cellar", lvl: 2,  name: "Light Homemade Beer",     ing: ["Barley", "Water", "Yeast", "Sugar"] },
+  { s: "Cellar", lvl: 5,  name: "Kvass",                   ing: ["Barley", "Water", "Yeast", "Sugar"] },
+  { s: "Cellar", lvl: 10, name: "Blackcurrant Wine",       ing: ["Blackcurrant Juice"] },
   { s: "Cellar", lvl: 14, name: "Mead",                    ing: ["Water", "Honey"] },
   { s: "Cellar", lvl: 20, name: "Pepper and Honey Wine",   ing: ["Pepper", "Honey"] },
   { s: "Cellar", lvl: 24, name: "Dark Homemade Beer",      ing: ["Barley", "Water", "Yeast", "Sugar"] },
-  { s: "Cellar", lvl: 28, name: "White wine",              ing: ["Light Grape Juice"] },
-  { s: "Cellar", lvl: 30, name: "Red wine",                ing: ["Dark Grape Juice"] },
+  { s: "Cellar", lvl: 28, name: "White Wine",              ing: ["Light Grape Juice"] },
+  { s: "Cellar", lvl: 30, name: "Red Wine",                ing: ["Dark Grape Juice"] },
   { s: "Cellar", lvl: 32, name: "Redcurrant Wine",         ing: ["Redcurrant Juice"] },
-  { s: "Cellar", lvl: 34, name: "Pink wine",               ing: ["Dark Grape Juice"] },
+  { s: "Cellar", lvl: 34, name: "Rose Wine",               ing: ["Dark Grape Juice"] },   // "Pink wine" was roosa vein, i.e. rose
   { s: "Cellar", lvl: 40, name: "Cheap Sparkling Wine",    ing: ["Light Grape Juice"] },
   { s: "Cellar", lvl: 54, name: "Expensive Sparkling Wine",ing: ["Light Grape Juice"] },
   { s: "Cellar", lvl: 63, name: "Kids' Champagne",         ing: ["Light Grape Juice", "Water"] },   // official docs: "Lastešampus" (was mistranslated "Children's Shampoo"); station inferred
 
   /* ---- Distiller (spirits; "Spirit" is the base intermediate) ----------- */
-  { s: "Distiller", lvl: 4,   name: "Puskar",                    ing: ["Wheat", "Water", "Sugar"] },
+  { s: "Distiller", lvl: 4,   name: "Moonshine",                 ing: ["Wheat", "Water", "Sugar"] },
   { s: "Distiller", lvl: 6,   name: "Spirit",                    ing: ["Wheat", "Water", "Sugar"] },
   { s: "Distiller", lvl: 12,  name: "Blackcurrant Liqueur",      ing: ["Blackcurrant Juice", "Spirit"] },
   { s: "Distiller", lvl: 18,  name: "Cherry Liqueur",            ing: ["Cherry Juice", "Spirit"] },
   { s: "Distiller", lvl: 26,  name: "Cranberry Liqueur",         ing: ["Cranberry Juice", "Spirits"] },
-  { s: "Distiller", lvl: 36,  name: "Cranberry Liqueur (variant)", ing: ["Cranberry Juice", "Spirits"] },
+  /* Two cranberry liqueurs appeared at L26 and L36 with the same translated
+     name. The higher one is almost certainly the aged/strong version, so it is
+     named that way rather than left as "(variant)", which was our own bookkeeping
+     leaking into the shop window. */
+  { s: "Distiller", lvl: 36,  name: "Aged Cranberry Liqueur",   ing: ["Cranberry Juice", "Spirits"] },
   { s: "Distiller", lvl: 42,  name: "Raspberry Liqueur",         ing: ["Raspberry Juice", "Spirit"] },
   { s: "Distiller", lvl: 44,  name: "Vodka",                     ing: ["Water", "Spirit"] },
   { s: "Distiller", lvl: 48,  name: "Lemon Liqueur",             ing: ["Lemon Juice", "Spirit"] },
@@ -67,11 +71,20 @@ CF.recipes = [
   { s: "Distiller", lvl: 64,  name: "Lemon Vodka",               ing: ["Water", "Lemon Juice", "Spirits"] },
   { s: "Distiller", lvl: 66,  name: "White Tequila",             ing: ["Blue Agave", "Water", "Sugar"] },
   { s: "Distiller", lvl: 68,  name: "Apple Vodka",               ing: ["Water", "Apple Juice", "Spirits"] },
-  { s: "Distiller", lvl: 72,  name: "Light rum",                 ing: ["Caramel", "Water", "Spirit"] },   // L72 + price 90 OBSERVED; ingredients GUESSED
+  { s: "Distiller", lvl: 72,  name: "Light Rum",                 ing: ["Caramel", "Water", "Spirit"] },   // L72 + price 90 OBSERVED; ingredients GUESSED
   { s: "Distiller", lvl: 74,  name: "Plum Vodka",                ing: ["Water", "Plum Juice", "Spirits"] },
   { s: "Distiller", lvl: 80,  name: "Silver Tequila",            ing: ["Blue Agave", "Water", "Sugar"] },
-  { s: "Distiller", lvl: 86,  name: "Dzinn",                     ing: ["Juniper Berries", "Water"] },
+  { s: "Distiller", lvl: 86,  name: "Gin",                       ing: ["Juniper Berries", "Water"] },
+  /* L88-L98 come from a high-level ready-to-sell screen: the levels, the names
+   * and the prices are OBSERVED, the ingredients are GUESSED from how the other
+   * spirits at each family are built. "Brand" on that screen is the machine
+   * translation of Brandi, so it is written Brandy here. */
+  { s: "Distiller", lvl: 88,  name: "Golden Rum",                ing: ["Caramel", "Water", "Spirit"] },
   { s: "Distiller", lvl: 90,  name: "Golden Tequila",            ing: ["Blue Agave", "Water", "Sugar"] },
+  { s: "Distiller", lvl: 92,  name: "Corn Whiskey",              ing: ["Corn", "Water", "Spirit"] },
+  { s: "Distiller", lvl: 94,  name: "Brandy",                    ing: ["Light Grape Juice", "Spirit"] },
+  { s: "Distiller", lvl: 96,  name: "Dark Rum",                  ing: ["Caramel", "Spirit"] },
+  { s: "Distiller", lvl: 98,  name: "Cognac",                    ing: ["Light Grape Juice", "Water", "Spirit"] },
   { s: "Distiller", lvl: 105, name: "Raspberry Rum",             ing: ["Caramel", "Raspberry Juice", "Spirit"] },
   { s: "Distiller", lvl: 110, name: "Apple Rum",                 ing: ["Caramel", "Apple Juice", "Spirit"] },
   { s: "Distiller", lvl: 120, name: "Sierra Tequila",            ing: ["Blue Agave", "Spirit"] },
@@ -122,8 +135,8 @@ CF.recipes = [
   { s: "Blender", lvl: 65, name: "Bottled Orange Juice",          ing: ["Water", "Orange"] },
   { s: "Blender", lvl: 73, name: "Bottled Lemon Juice",           ing: ["Water", "Lemon"] },
   { s: "Blender", lvl: 75, name: "Strawberry Nectar",             ing: ["Strawberry Juice"] },
-  { s: "Blender", lvl: 79, name: "Bottled Cranberry Juice (Reserve)", ing: ["Water", "Cranberry"] },
-  { s: "Blender", lvl: 81, name: "Tikri Nectar",                  ing: ["Tikri"] },
+  { s: "Blender", lvl: 79, name: "Cranberry Nectar",              ing: ["Cranberry Juice"] },   // was a second "Bottled Cranberry Juice"; the Blender's high tier is nectars
+  { s: "Blender", lvl: 81, name: "Gooseberry Nectar",             ing: ["Gooseberries"] },
   { s: "Blender", lvl: 87, name: "Bottled Redcurrant Juice",      ing: ["Water", "Redcurrant"] },
   { s: "Blender", lvl: 91, name: "Bottled Blackcurrant Juice",    ing: ["Water", "Blackcurrant"] },
   { s: "Blender", lvl: 95, name: "Orange Nectar",                 ing: ["Orange Juice"] },

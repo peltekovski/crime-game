@@ -218,7 +218,8 @@ CF.newSportsState = function () {
   return {
     durabilityPoints: f.xpToReachLevelFor("Endurance", s.durabilityLevel) + s.durabilityInto,
     powerPoints: f.xpToReachLevelFor("Strength", s.powerLevel) + s.powerInto,
-    handEnergy: s.handEnergy, energyAt: Date.now(),
+    speedPoints: f.xpToReachLevelFor("Speed", CF.speedStartLevel),
+    handEnergy: s.handEnergy, legEnergy: s.legEnergy, energyAt: Date.now(),
     equipment: JSON.parse(JSON.stringify(s.equipment)),
     passes: JSON.parse(JSON.stringify(s.passes)),
     run: null, lastSteroidBuy: 0,
@@ -355,6 +356,10 @@ CF.settleUpdates = function () {
   if (s.sports) {
     s.sports.handEnergy = Math.min(CF.ruleset.sports.handEnergyMax,
                                    (s.sports.handEnergy || 0) + n * u.handEnergy);
+    /* Legs refill on the same beat as arms, from their own pool — the stadium
+       and the gym never share energy. */
+    s.sports.legEnergy = Math.min(CF.ruleset.speedRun.legEnergyMax,
+                                  (s.sports.legEnergy || 0) + n * CF.ruleset.speedRun.legEnergyPerHour);
     s.sports.energySlot = now;
   }
   s.houseGear  = Math.min(u.gearMax, (s.houseGear  || 0) + n * u.houseGear);
@@ -450,6 +455,13 @@ CF.reconcileState = function () {
   if (!CF.state.sports) CF.state.sports = CF.newSportsState();
   CF.state.sports.equipment = CF.state.sports.equipment || {};
   CF.state.sports.passes = CF.state.sports.passes || { stadium: false, boxing: false };
+  /* The stadium arrived after these two: a save made before it has no Speed
+     progress and no leg energy. Seed both rather than starting anyone at
+     Speed 1 — Speed was a flat 10 for everybody until it became trainable. */
+  if (CF.state.sports.speedPoints == null)
+    CF.state.sports.speedPoints = CF.formulas.xpToReachLevelFor("Speed", CF.speedStartLevel);
+  if (CF.state.sports.legEnergy == null)
+    CF.state.sports.legEnergy = CF.ruleset.speedRun.legEnergyMax;
 
   // garden — added later
   if (!CF.state.garden) CF.state.garden = CF.newGardenState();
@@ -489,6 +501,35 @@ CF.reconcileState = function () {
   inv.materials = inv.materials || {};
   inv.rawJuice = inv.rawJuice || {};
   inv.finished = inv.finished || {};
+
+  /* -- Name corrections -----------------------------------------------------
+   * Materials and drinks were first read off machine-translated screenshots, so
+   * a few kept their Estonian ("Tikri" for gooseberries, "Dzinn" for gin) or an
+   * odd capitalisation. The stock is stored UNDER THE NAME, so a rename would
+   * otherwise silently orphan whatever a player had made. Move the balance over
+   * and drop the old key. Old names left here permanently — this costs nothing
+   * and a save may be years old. */
+  var RENAMED = {
+    materials: { "Tikri": "Gooseberries" },
+    finished: {
+      "Kali": "Kvass", "Puskar": "Moonshine", "Dzinn": "Gin",
+      "Tikri Nectar": "Gooseberry Nectar", "Light rum": "Light Rum",
+      "Filtered water": "Filtered Water", "Light home beer": "Light Homemade Beer",
+      "Blackcurrant wine": "Blackcurrant Wine", "White wine": "White Wine",
+      "Red wine": "Red Wine", "Pink wine": "Rose Wine",
+      "Cranberry Liqueur (variant)": "Aged Cranberry Liqueur",
+      "Bottled Cranberry Juice (Reserve)": "Cranberry Nectar",
+    },
+  };
+  Object.keys(RENAMED).forEach(function (store) {
+    var bag = inv[store], map = RENAMED[store];
+    for (var old in map) {
+      if (bag[old] == null) continue;
+      bag[map[old]] = (bag[map[old]] || 0) + bag[old];
+      delete bag[old];
+    }
+  });
+
   CF.materials.forEach(function (m) { if (inv.materials[m] == null) inv.materials[m] = 0; });
   CF.rawJuices.forEach(function (j) { if (inv.rawJuice[j] == null) inv.rawJuice[j] = 0; });
   CF.finishedNames.forEach(function (n) { if (inv.finished[n] == null) inv.finished[n] = 0; });

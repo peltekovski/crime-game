@@ -209,7 +209,15 @@ CF.formulas = {
   },
 
   /* == Reputation cap — CONFIRMED constant (76,040 at levels 64..67) ====== */
-  repMax: function (level) { return CF.ruleset.reputationMax; },
+  /* NO CEILING. The tavern used to stop at 76,040, which turned out to be a
+   * temporary reading rather than a limit — a later account sat at 3,278,069
+   * with the max quoted as the very same number, i.e. the "max" just tracks
+   * whatever you have reached. Reputation now grows for as long as you serve
+   * customers. Kept as a function so callers need not change. */
+  repMax: function (level) {
+    var r = CF.ruleset.reputationMax;
+    return r == null ? Infinity : r;
+  },
 
   /* == Telephone raw-material buy price — scales WITH tavern reputation
    * (official docs: cheap/free at rep 0, higher when famous). Linear model
@@ -286,7 +294,14 @@ CF.graph = {
     if (recipe.price_CC != null) return recipe.price_CC;
     var byLvl = CF.ruleset.priceByLevel;
     if (byLvl && byLvl[recipe.lvl] != null) return byLvl[recipe.lvl];
-    if (recipe.lvl > 66) return CF.ruleset.priceCapCC;
+    /* Above the table, keep climbing the ten-level staircase instead of
+     * flattening. A flat cap made every drink past the last observed level worth
+     * the same, so the whole late game paid identically however far you pushed. */
+    var st = CF.ruleset.priceStep;
+    if (st && recipe.lvl > st.fromLevel) {
+      var steps = Math.floor((recipe.lvl - st.fromLevel) / st.stepLevels);
+      return st.fromPrice + steps * st.stepCC;
+    }
     var p = CF.ruleset.price;
     return Math.round(p.base + p.perLevel * recipe.lvl + p.markup * this.inputCostCC(recipe));
   },

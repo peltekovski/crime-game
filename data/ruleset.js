@@ -341,6 +341,13 @@ CF.ruleset = {
     //   Endurance L38 needs 77, lifetime 512 -> ratio 1.169 gives 513 (within 1)
     "Stealing":   { ratio: 1.507, anchorLevel: 5,  anchorValue: 58 },
     "Endurance": { ratio: 1.169, anchorLevel: 38, anchorValue: 77 },
+    /* Speed: the stadium read "You need another 5907 speed points to level up"
+     * at level 10. That is what is LEFT, not what the level costs, so 5907 is a
+     * LOWER BOUND on pointsToNext(10) and the real figure is higher by however
+     * far into the level that account already was. Anchored on it anyway, which
+     * makes Speed level very slightly faster here than in the reference. A
+     * reading taken right after a level-up would pin it exactly. */
+    "Speed":      { ratio: 1.2,   anchorLevel: 10, anchorValue: 5907 },
     /* Medical science has NO entry ON PURPOSE — it rides the UNIVERSAL curve,
      * and only the universal curve fits both observed readings:
      *   L1  "Points to level: 200"  -> universal 199.76 -> 200   (both fit)
@@ -418,6 +425,49 @@ CF.ruleset = {
   /* -- Sports complex. Hand energy +5/h to 120 and steroids = 2x points are
    * CONFIRMED by the official help; steroidEnergy 20 is from the gym screen. */
   sports: { handEnergyMax: 120, handEnergyPerHour: 5, steroidMultiplier: 2, steroidEnergy: 20 },
+
+  /* -- The Stadium: Speed, trained by running the 100m ---------------------
+   * THE RACE TIME IS FLAVOUR TEXT. This was the surprise: across 25 sampled
+   * runs the displayed time has no usable relationship to the points paid
+   * (r ~ 0.24, i.e. noise). Our first model derived points FROM the time and
+   * happened to fit, because two samples will fit almost anything. Points and
+   * time are simply two independent rolls, and only the kit connects them.
+   *
+   * POINTS are a random draw per kit. Measured over those 25 runs, all at
+   * Speed level 11:
+   *     racing kit   mean 121.1, sd 17.1, seen 96..148
+   *     cheap kit    mean  97.5, sd 12.2, seen 81..125
+   *
+   * LEVEL SCALING IS OUR INFERENCE, not a measurement — every sample is from
+   * level 11. Dividing through by the level gives 11.01 and 8.86 points per
+   * level, and the two earlier level-10 runs (115 racing, 93 cheap) sit within
+   * half a standard deviation of what those constants predict there (110 and
+   * 89). That plus the gym, where scaling by level is confirmed outright, is
+   * why the means and spreads below are PER LEVEL. Samples from any other
+   * level would confirm it or replace it, and nothing else would change.
+   *
+   * COSTS: a run spends 1 leg energy out of 120 (seen falling 120 -> 119 ->
+   * 118 over two runs), +5 an update, and 1 point of each item in the kit. The
+   * racing kit is dearer without any extra wear, because racing gear sells in
+   * twentieths of the quantity the cheap gear does. A steroid restores 20.
+   *
+   * WHICH ITEMS each kit uses is confirmed: the racing rows only moved on a
+   * racing run. */
+  speedRun: {
+    legEnergyMax: 120, legEnergyPerHour: 5, energyPerRun: 1, steroidEnergy: 20,
+    startRecordSec: 24,          // your record before you have run anything
+    timeFromSec: 16.0, timeToSec: 19.7,   // cosmetic only; see above
+    kits: [
+      { id: "cheap", boots: "Running boots", suit: "Tracksuits",
+        label: "Running shoes + Tracksuits", note: "cheaper",
+        wearBoots: 1, wearSuit: 1,
+        meanPerLevel: 8.8636, sdPerLevel: 1.1091, minPerLevel: 7.3636, maxPerLevel: 11.3636 },
+      { id: "fast", boots: "Racing boots", suit: "Competition suits",
+        label: "Racing boots + Racing suits", note: "faster",
+        wearBoots: 1, wearSuit: 1,
+        meanPerLevel: 11.0091, sdPerLevel: 1.5545, minPerLevel: 8.7273, maxPerLevel: 13.4545 },
+    ],
+  },
 
   /* -- Fame per skill — CONFIRMED by the official help + both skill panels
    * (Gardening L1 -> 9 = 1²·9; Stealing L5 -> 75 = 5²·3). */
@@ -519,11 +569,18 @@ CF.ruleset = {
   },
 
   /* Real drink SALE prices (CC) by drink level, from the in-game ready-to-sell
-   * list. Not a formula — hand-set per level; prices plateau at 80 CC. Levels
-   * 46 & 52 interpolated (cut off in the screenshots); level 6 (Spirit /
-   * "Alcohol") is an intermediate shown as "-", priced nominally. The table
-   * CONTINUES past 66: L67-71 = 80, then breaks to 90 at L72-74 (observed in the
-   * ready-to-sell screen). Prices are NOT capped at 80; levels >74 use priceCapCC. */
+   * list. Not a formula — hand-set per level; level 6 (Spirit / "Alcohol") is an
+   * intermediate shown as "-", priced nominally. Levels 46 & 52 interpolated
+   * (cut off in the screenshots).
+   *
+   * THE PRICE CURVE IS A STAIRCASE OF TEN-LEVEL PLATEAUS. A second ready-to-sell
+   * screen from a high account gave L88=100, L90=100, L92..L98=120, L102=140, and
+   * those land exactly on ten-wide steps anchored at 62:
+   *     62-71 = 80    72-81 = 90    82-91 = 100    92-101 = 120    102-111 = 140
+   * Every observation fits with none left over — the earlier 80 band is itself
+   * exactly ten levels (62-71), and 72-74 = 90 sits inside the next step. The
+   * rise is +10 for the first two steps, then +20 from 100 onward, which is what
+   * priceStep below continues past the end of the table. */
   priceByLevel: {
     1: 8,  2: 14, 3: 10, 4: 16, 5: 14, 6: 14, 7: 16, 8: 20, 9: 18, 10: 24,
     11: 16, 12: 28, 13: 18, 14: 26, 15: 20, 16: 22, 17: 18, 18: 30, 19: 28, 20: 30,
@@ -533,9 +590,19 @@ CF.ruleset = {
     51: 52, 52: 54, 53: 56, 54: 74, 55: 62, 56: 68, 57: 66, 58: 74, 59: 70, 60: 76,
     61: 72, 62: 80, 63: 80, 64: 80, 65: 80, 66: 80,
     67: 80, 68: 80, 69: 80, 70: 80,          // 67-70 interpolated (unobserved), bracketed by observed 66 & 71 = 80
-    71: 80, 72: 90, 73: 90, 74: 90,          // OBSERVED (ready-to-sell screen): price breaks 80 -> 90 at L72
+    71: 80, 72: 90, 73: 90, 74: 90,          // OBSERVED: price breaks 80 -> 90 at L72
+    75: 90, 76: 90, 77: 90, 78: 90, 79: 90, 80: 90, 81: 90,        // rest of the 72-81 step
+    82: 100, 83: 100, 84: 100, 85: 100, 86: 100, 87: 100,          // 82-91 step; OBSERVED at 88 & 90
+    88: 100, 89: 100, 90: 100, 91: 100,
+    92: 120, 93: 120, 94: 120, 95: 120,      // 92-101 step; OBSERVED at 92, 94, 96, 98
+    96: 120, 97: 120, 98: 120, 99: 120, 100: 120, 101: 120,
+    102: 140, 103: 140, 104: 140, 105: 140, 106: 140,              // 102-111 step; OBSERVED at 102
+    107: 140, 108: 140, 109: 140, 110: 140, 111: 140,
   },
-  priceCapCC: 90,                 // highest OBSERVED (L72-74=90); prices are NOT capped at 80 — likely keep climbing above 74
+  /* Past the table the staircase simply continues: another +20 CC every ten
+   * levels. priceStepLevels/priceStepCC drive it so the shape stays editable
+   * the moment a higher ready-to-sell screen turns up. */
+  priceStep: { fromLevel: 102, fromPrice: 140, stepLevels: 10, stepCC: 20 },
 
   /* -- Warehouse capacities (SHARED TOTAL per warehouse) -------------------
    * cap = base + perLevel * DrinkMasterLevel. Derived from the screenshot:
@@ -548,12 +615,14 @@ CF.ruleset = {
     finishedBase:     2000, finishedPerLevel:     120,   // OUR design choice
   },
 
-  /* -- Reputation cap — an UPGRADE value, not a level formula --------------
-   * Observed tiers: 76,040 (Barkeeping L64-67), 95,908 (L68), 143,792 (a higher-
-   * level account, drinks unlocked to L74). Not per-level; it looks like a
-   * tavern upgrade we haven't modelled yet. Kept as a plain editable number
-   * (also settable in the debug panel). */
-  reputationMax: 76040,
+  /* -- Reputation cap — THERE IS NONE (null = uncapped) --------------------
+   * The old readings (76,040 at Barkeeping L64-67, 95,908 at L68, 143,792 on a
+   * higher account) looked like upgrade tiers. They were not: a much later
+   * account showed 3,278,069 with the "max" quoted as that same figure, so the
+   * number the game prints as a maximum is only the high-water mark you have
+   * already reached. Reputation is left to grow without limit.
+   * Set this to a number to reinstate a ceiling. */
+  reputationMax: null,
 
   /* -- Juicing (Juicer #1) -------------------------------------------------- */
   juiceLitersPerUnit: 1,          // 1 raw material -> 1 L raw juice (our choice)

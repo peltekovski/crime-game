@@ -2325,8 +2325,36 @@ select:focus-visible,
 
 /* The bank shuts if any item is left to rot — the page says so in as many
    words, and it stops all income until you maintain it. */
+/* Sits UNDER the bank artwork, matching the reference: plain red capitals on
+   the page background, no box. The cause line beneath it is ours. */
 .bank-shut {
-  background: #7d1a12; color: #fff; padding: 8px 10px; margin: 0 0 8px;
-  font-size: 11px; line-height: 1.5; text-align: left;
+  margin: 10px 0 2px; text-align: center;
+  color: #a6231a; font-size: 15px; letter-spacing: .3px;
 }
-.bank-shut a { color: #ffd9d4; text-decoration: underline; }
+.bank-shut b { font-weight: bold; }
+.bank-shut-why {
+  margin-top: 5px; color: #4a4a4a; font-size: 11px;
+  font-weight: normal; letter-spacing: 0; line-height: 1.5;
+}
+.bank-shut-why a { color: #7d1a12; text-decoration: underline; }
+
+/* Bank header: figures LEFT, artwork RIGHT — two columns, as the reference has
+   it. An earlier `.bank-top { flex-wrap: wrap }` was still winning, and the art
+   had no width cap, so the two boxes could not share a line and the artwork
+   dropped underneath the numbers. Cap the art and stop the wrap; `min-width: 0`
+   on the left column lets the sentences reflow instead of forcing the split. */
+.bank-top { flex-wrap: nowrap; }
+.bank-top .bank-art { flex: none; max-width: 45%; }
+.bank-top .bank-left { min-width: 0; }
+
+/* ---- Stadium (Speed) ---- */
+.stad-rec { text-align: center; font-size: 11px; margin: 4px 0 10px; }
+.kit-pay { color: #5a6570; font-size: 11px; margin-left: 6px; }
+.kit-title { text-align: center; font-weight: bold; margin: 8px 0 6px; }
+.kit-opt {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 4px 10px; font-size: 12px; justify-content: center; white-space: nowrap;
+}
+.kit-opt:hover { background: #e6ecf1; }
+/* legs get their own colour so the two energy bars are never confused */
+.ebar.legs i { background: #2e8b3d; }

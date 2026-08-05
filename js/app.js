@@ -269,6 +269,7 @@
               : r[0] === "Stealing" ? fmt(CF.garden.stealProgress().level)
               : r[0] === "Gardening" ? fmt(CF.garden.gardenProgress().level)
               : r[0] === "Strength" ? fmt(CF.sports.power().level)
+              : r[0] === "Speed" ? fmt(CF.sports.speed().level)
               : r[0] === "Medical science" ? fmt(CF.medicine.progress().level)
               : r[0] === "Cooking" ? fmt(CF.canteen.progress().level)
               : r[0] === "Weapon handling" ? fmt(CF.houses.weaponHandling().level)
@@ -331,7 +332,7 @@
    * + Endurance 37 + Defence 10 + Dexterity 10 + Weapon handling 2 = 82/6 = 13.67. */
   function fightingValue() {
     var s = CF.sportsStatic;
-    var vals = [s.Speed, CF.sports.power().level, CF.sports.endurance().level,
+    var vals = [CF.sports.speed().level, CF.sports.power().level, CF.sports.endurance().level,
                 s.Defence, s.Dexterity, CF.houses.weaponHandling().level];
     var sum = vals.reduce(function (a, b) { return a + b; }, 0);
     return (sum / vals.length).toFixed(2);
@@ -352,7 +353,7 @@
     add("💪", "Strength", CF.sports.power().level);
     add("🔫", "Weapon handling", CF.houses.weaponHandling().level);
     add("🦺", "Defence", CF.sportsStatic["Defence"]);
-    add("⚡", "Speed", CF.sportsStatic["Speed"]);
+    add("⚡", "Speed", CF.sports.speed().level);
     add("🎯", "Dexterity", CF.sportsStatic["Dexterity"]);
     add("🍳", "Cooking", CF.canteen.progress().level);
     add("⚕️", "Medical science", CF.medicine.progress().level);
@@ -427,6 +428,9 @@
     } else if (skill === "Strength") {
       var pw = CF.sports.power();
       info = { icon: "💪", level: pw.level, into: pw.into, lifetime: pw.lifetime };
+    } else if (skill === "Speed") {
+      var spd = CF.sports.speed();
+      info = { icon: "⚡", level: spd.level, into: spd.into, lifetime: spd.lifetime };
     } else if (skill === "Cooking") {
       var ck = CF.canteen.progress();
       info = { icon: "🍳", level: ck.level, into: ck.into, lifetime: ck.lifetime };
@@ -2387,14 +2391,43 @@
       '<p class="nb"><b>NOTE!</b> Using steroids will give you 2x more points!</p>' +
       '<div class="cbtn"><button class="btn" data-act="sports-run">Go for a run.</button></div>';
   }
+  /* ---------------------------- STADIUM -------------------------------- */
+  /* Training only. The record sits under the energy bar and is rewritten in
+   * place the moment a run beats it. */
+  function stadRecordHtml() {
+    var rec = CF.sports.runRecord();
+    return "Your 100m record is <b>" + (Math.round(rec * 100000) / 100000) + "</b> seconds.";
+  }
+  function stadiumPanel() {
+    CF.sports.regenEnergy();
+    var r = CF.ruleset.speedRun, sp = CF.sports.speed();
+    var e = CF.state.sports.legEnergy || 0, max = CF.sports.maxLegEnergy();
+    var pct = Math.max(0, Math.min(100, e / max * 100));
+    var picked = ui.runKit || "cheap";
+    var kits = r.kits.map(function (k) {
+      var pay = CF.sports.kitPayout(k);
+      return '<div class="kit-opt" data-act="kit-opt" data-kit="' + k.id + '">' +
+        '<input type="radio" name="runkit"' + (picked === k.id ? " checked" : "") + "> " +
+        "<span>" + esc(k.label) + " <b>(" + esc(k.note) + ")</b>" +
+        '<span class="kit-pay">about ' + fmt(pay.mean) + " points</span></span></div>";
+    }).join("");
+    return '<div class="sp-need" id="stadNeed">You need another <b>' + fmt(sp.pointsToLevel) + "</b> speed points to level up.</div>" +
+      '<div class="energy" id="stadEnergy">Leg energy: <span class="ebar legs"><i style="width:' + pct.toFixed(1) + '%"></i></span> ( <b>' + fmt(e) + "</b> / " + fmt(max) + " )</div>" +
+      '<div class="stad-rec" id="stadRecord">' + stadRecordHtml() + "</div>" +
+      '<div class="kit-title">Choose your equipment:</div>' + kits +
+      '<div class="cbtn"><button class="btn" data-act="stadium-run">Run 100m</button></div>' +
+      '<div class="eat"><a data-act="sports-steroid-legs">Eat 1 steroid and restore ' + r.steroidEnergy + " legs of energy!</a></div>" +
+      '<p class="nb"><b>NOTE!</b> Leg energy recovers ' + r.legEnergyPerHour + " points at every update!</p>";
+  }
+
   function gymPanel() {
     CF.sports.regenEnergy();
     var p = CF.sports.power(), e = CF.state.sports.handEnergy || 0, max = CF.sports.maxHandEnergy();
     var pct = Math.max(0, Math.min(100, e / max * 100));
     return '<div class="sp-need" id="gymNeed">You still need <b>' + fmt(p.pointsToLevel) + "</b> strength points to level up.</div>" +
       '<div class="energy" id="gymEnergy">Hand energy: <span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span> ( <b>' + fmt(e) + "</b> / " + fmt(max) + " )</div>" +
-      '<div class="lifts">' + CF.gymLifts.map(function (l) {
-        return '<div class="lift"><a data-act="sports-lift" data-lift="' + esc(l.label) + '">' + esc(l.label) + ":</a> " +
+      '<div class="lifts">' + CF.sports.lifts().map(function (l) {
+        return '<div class="lift"><a data-act="sports-lift" data-lift="' + esc(l.id) + '">' + esc(l.label) + ":</a> " +
           '<span class="lmeta">( -' + l.energy + " energy = " + fmt(l.points) + " points )</span></div>";
       }).join("") + "</div>" +
       '<div class="eat"><a data-act="sports-steroid">Eat 1 steroid and restore ' + CF.ruleset.sports.steroidEnergy + " arm energy!</a></div>" +
@@ -2402,15 +2435,27 @@
   }
   /* Lifting updates only the numbers that changed — rebuilding the whole panel
    * made the lift rows visibly flash on every click. */
-  function fastLift(label) {
+  function fastLift(id) {
     ui.sportError = null; ui.sportNotice = null;
     var beforeP = CF.sports.power().level;
-    var lr = CF.sports.doLift(label);
+    var lr = CF.sports.doLift(id);
+    var leveled = false;
     if (lr.ok) {
       ui.sportNotice = lr.msg;
-      if (CF.sports.power().level !== beforeP) ui.sportNotice += " Your power level is now " + CF.sports.power().level + ".";
+      leveled = CF.sports.power().level !== beforeP;
+      if (leveled) ui.sportNotice += " Your power level is now " + CF.sports.power().level + ".";
       CF.autosave();
     } else ui.sportError = lr.msg;
+    /* The barbells get heavier and pay more with every Strength level, so on a
+     * level-up the five rows are stale and have to be redrawn. Only then —
+     * rebuilding them on every ordinary lift is what made them flash. */
+    if (leveled) {
+      var box = document.querySelector(".lifts");
+      if (box) box.innerHTML = CF.sports.lifts().map(function (l) {
+        return '<div class="lift"><a data-act="sports-lift" data-lift="' + esc(l.id) + '">' + esc(l.label) + ":</a> " +
+          '<span class="lmeta">( -' + l.energy + " energy = " + fmt(l.points) + " points )</span></div>";
+      }).join("");
+    }
     var p = CF.sports.power(), e = CF.state.sports.handEnergy || 0, max = CF.sports.maxHandEnergy();
     var pct = Math.max(0, Math.min(100, e / max * 100));
     if ($("gymNeed")) $("gymNeed").innerHTML = "You still need <b>" + fmt(p.pointsToLevel) + "</b> strength points to level up.";
@@ -2452,6 +2497,7 @@
     else if (fac === "gym") panel = gymPanel();
     else if (fac === "shop") panel = shopPanel();
     else if (fac === "trail") panel = trailPanel();
+    else if (fac === "stadium") panel = stadiumPanel();
     else panel = '<div class="garden-soon"><b>Not built yet</b></div>';
 
     CF._svg.sport = SPORTS_ART;
@@ -2478,34 +2524,40 @@
     return '<div class="bank-rooms">' + col(CF.bankRooms.left) + col(CF.bankRooms.right) + "</div>";
   }
   /* The info block, line for line as the reference prints it. */
+  /* The closed sign. The reference does NOT put this with the figures on the
+   * left — it sits on its own under the bank artwork, big and red, and the
+   * numbers below it carry on being shown as normal. The one thing we add is
+   * the small line naming the cause, because our maintenance screen is a click
+   * away and there is no reason to make anyone hunt for it. */
+  function bankShutHtml() {
+    var rot = CF.bank.rottedItems();
+    if (!rot.length) return "";
+    return '<div class="bank-shut"><b>THE BANK IS CURRENTLY CLOSED!</b>' +
+      '<div class="bank-shut-why">' + rot.length + " item" +
+      (rot.length === 1 ? " has" : "s have") + " been left to rot. Nothing is earned until " +
+      '<a data-act="bank-room" data-room="items">every one is maintained</a>.</div></div>';
+  }
   function bankInfoHtml() {
     var B = CF.bank, p = CF.state.player;
-    var rot = B.rottedItems(), closed = rot.length > 0;
+    var closed = B.isClosed();
     return '<div class="bank-info">' +
-      (closed
-        ? '<div class="bank-shut"><b>THE BANK IS CLOSED.</b><br>' + rot.length +
-          " item" + (rot.length === 1 ? " has" : "s have") + " been left to rot, and the clients have " +
-          'gone. Nothing is earned until <a data-act="bank-room" data-room="items">every one of them is ' +
-          "maintained</a>.</div>"
-        : "") +
-      "<p>You have <b>" + fmt(p.bank || 0) + "</b> CC in the bank<br>" +
-      "Clients keep here <b>" + fmt(B.clientsHold()) + "</b> CC<br>" +
-      "The bank's reputation is <b>" + fmt(B.reputation()) + "</b>" +
-        ' <span class="cc">(the most clients will ever deposit)</span><br>' +
+      "<p>You have <b>" + fmt(p.bank || 0) + "</b> CC in the bank.<br>" +
+      "Customers keep <b>" + fmt(B.clientsHold()) + "</b> CC here.<br>" +
+      "The bank's reputation is <b>" + fmt(B.reputation()) + "</b>.<br>" +
       "It earns <b>" + fmt(Math.round(B.clientsHold() * CF.ruleset.bank.interestPerHour)) +
-        "</b> CC an hour" + (closed ? " <b>&mdash; but not while it is closed</b>" : "") + "<br>" +
-      "The value of the vaults is <b>" + fmt(CF.vaults.value()) + "</b> CC<br>" +
-      "There are <b>" + fmt(CF.vaults.differentHeld()) + "</b> items in the vaults and <b>" +
-      fmt(B.itemTotal()) + "</b> items in the bank</p>" +
+        "</b> CC an hour" + (closed ? " <b>&mdash; but not while it is closed</b>" : "") + ".<br>" +
+      "The value of the vaults is <b>" + fmt(CF.vaults.value()) + "</b> CC. There are <b>" +
+      fmt(CF.vaults.differentHeld()) + "</b> items in the vaults and <b>" +
+      fmt(B.itemTotal()) + "</b> items in the bank.</p>" +
       "</div>";
   }
   function bankUpgradeHtml() {
     var B = CF.bank, max = CF.ruleset.bank.maxLevel;
-    var h = '<div class="bank-lvl"><em>Your bank level is ' + B.level() + "</em></div>";
-    if (B.level() >= max) return h + '<div class="bank-upg">The bank cannot be improved any further.</div>';
-    return h + '<div class="bank-upg"><b>[</b><a data-act="bank-upgrade">IMPROVE</a><b>]</b><br>' +
-      "Improving costs <b>" + fmt(B.upgradeCost()) + "</b> CC<br>" +
-      "and needs <b>" + fmt(B.upgradeItems()) + "</b> different bank items " +
+    var h = '<div class="bank-lvl"><em>Your bank level is ' + B.level() + ".</em></div>";
+    if (B.level() >= max) return h + '<div class="bank-upg">The bank cannot be upgraded any further.</div>';
+    return h + '<div class="bank-upg"><b>[</b><a data-act="bank-upgrade">UPGRADE</a><b>]</b><br>' +
+      "Upgrading costs <b>" + fmt(B.upgradeCost()) + "</b> CC<br>" +
+      "and requires <b>" + fmt(B.upgradeItems()) + "</b> different bank items " +
       "(you have <b>" + fmt(B.itemsDifferent()) + "</b>)</div>";
   }
   /* "Settle with cash" — the page the reference source actually covers. */
@@ -2716,7 +2768,8 @@
         '<div class="bank-left">' + bankRoomsHtml() +
           '<hr class="bank-rule">' + bankInfoHtml() +
           '<hr class="bank-rule">' + bankUpgradeHtml() + "</div>" +
-        '<div class="bank-art">' + locArt("bank-" + CF.bank.level() + ".gif", "bank-img", "bank", "Bank") + "</div>" +
+        '<div class="bank-art">' + locArt("bank-" + CF.bank.level() + ".gif", "bank-img", "bank", "Bank") +
+          bankShutHtml() + "</div>" +
       "</div>" +
       '<div id="bankNotice" class="notice-slot">' +
         noticeHtml({ err: ui.bankError, msg: ui.bankNotice, reserve: true }) + "</div>" +
@@ -2922,7 +2975,7 @@
     var p = slumPassFor(area);
     if (p && CF.state.slumPasses[p.id]) return true;           // a bought ticket always opens it
     var g = slumStatGateFor(area);
-    if (g) return (CF.sportsStatic[g.stat] || 0) >= g.level;   // Parking also opens at Speed 15
+    if (g) return CF.sports.statLevel(g.stat) >= g.level;      // Parking also opens at Speed 15
     return !p;                                                 // Highway/Market have neither gate
   }
   function renderSlum() {
@@ -3874,15 +3927,19 @@
       } },
       { id: "Strength", name: "Strength", body: function () {
         var s = CF.ruleset.sports, u = CF.ruleset.perUpdate;
-        var rows = CF.gymLifts.map(function (l) {
+        var rows = CF.sports.lifts().map(function (l) {
           return "<tr><td>" + esc(l.label) + "</td><td>" + l.energy + "</td><td>" + fmt(l.points) + "</td><td>" +
             (l.points / l.energy).toFixed(0) + "</td></tr>";
         }).join("");
         return gTitle("Strength") +
           "<p>Trained at the <b>Gym</b>, which needs a pass bought at the Sports shop at Endurance 30.</p>" +
+          "<p><b>The barbells are not fixed.</b> Every Strength level makes them heavier and makes each lift pay " +
+          "more, so this table shows the gym as it stands for you right now, at level <b>" +
+          CF.sports.power().level + "</b>. Come back later and all five rows will have moved.</p>" +
           '<table class="g-tab"><tr><th>Lift</th><th>Energy</th><th>Points</th><th>Per energy</th></tr>' + rows + "</table>" +
           "<p>Look at the last column. <b>Heavier lifts pay more in total but less per unit of energy.</b> Energy is " +
-          "your real bottleneck, so the lightest lift is the most efficient use of it.</p>" +
+          "your real bottleneck, so the lightest lift is the most efficient use of it. That stays true at every " +
+          "level, because the whole ladder scales together.</p>" +
           "<p><b>Hand energy</b> is the limit. It goes up <b>" + u.handEnergy + "</b> at every update and caps at <b>" +
           fmt(s.handEnergyMax) + "</b>. A steroid restores <b>" + s.steroidEnergy + "</b> instantly. Each lift also " +
           "wears your <b>lifting belt</b> and <b>wristbands</b> by one.</p>";
@@ -3894,7 +3951,28 @@
           "<p>Yours is <b>" + fightingValue() + "</b>. Because it is an average, the cheapest way to raise it is " +
           "whichever body stat is currently lowest, not whichever is easiest to train.</p>";
       } },
-      { id: "Speed", name: "Speed", soon: "Speed is trained at the <b>Stadium</b>. The entry ticket is already on sale at the Sports shop for anyone at Strength 20 or above, but the training itself is not built yet." },
+      { id: "Speed", name: "Speed", body: function () {
+        var r = CF.ruleset.speedRun;
+        return gTitle("Speed") +
+          "<p>Trained at the <b>Stadium</b>, which needs a ticket bought at the Sports shop at Strength 20.</p>" +
+          "<p>You run the <b>100m</b>. A run costs <b>" + r.energyPerRun + "</b> leg energy out of <b>" +
+          fmt(r.legEnergyMax) + "</b>, and legs recover <b>" + r.legEnergyPerHour + "</b> at every update. " +
+          "Leg energy is its own pool: running never touches the arm energy the gym uses, so you can train " +
+          "both in the same hour.</p>" +
+          "<p><b>Your time is not your reward.</b> It is worth saying plainly, because it looks like it should " +
+          "be: the clock and the points are settled separately, and a blistering run can pay less than a slow " +
+          "one. Chasing a better time is chasing your own record, nothing more.</p>" +
+          "<p>What does decide the payout is <b>which kit you wear</b>, and luck. Each run draws a random " +
+          "number of points around what that kit is worth, and what it is worth rises with your Speed level.</p>" +
+          "<p><b>Running shoes and tracksuits</b> pay about <b>" + fmt(CF.sports.kitPayout(r.kits[0]).mean) +
+          "</b> points at your level. <b>Racing boots and racing suits</b> pay about <b>" +
+          fmt(CF.sports.kitPayout(r.kits[1]).mean) + "</b>. Both wear one point of each item per run, so the " +
+          "racing kit is not greedier on the track. It is greedier at the till: racing gear sells in a " +
+          "twentieth of the quantity, at ten times the price. Early on the cheap kit is the sane choice.</p>" +
+          "<p>A steroid restores <b>" + r.steroidEnergy + "</b> leg energy on the spot.</p>" +
+          "<p>Your <b>100m record</b> is simply the best time you have ever run, and it updates the moment you " +
+          "beat it.</p>";
+      } },
       { id: "Dexterity", name: "Dexterity", soon: "Dexterity is trained at the <b>Boxing Hall</b>. The pass is already on sale at the Sports shop for anyone at Speed 15 or above, but the training itself is not built yet." },
       { id: "Defence", name: "Defence", soon: "Defence is trained at the <b>Sports complex</b> alongside Dexterity. Not built yet." },
     ] },
@@ -4507,7 +4585,7 @@
   }
 
   function renderTavern() {
-    var p = CF.state.player, repMax = CF.formulas.repMax(p.drinkMasterLevel);
+    var p = CF.state.player;
     if (!p.tavernJobAccepted) { $("locationPanel").innerHTML = tavernJobOffer(); return; }
     if (ui.tavernBuyView) { $("locationPanel").innerHTML = tavernBuyOffer(); return; }
 
@@ -5357,6 +5435,24 @@
         ui.sportError = null; ui.sportNotice = null;
         var er = CF.sports.eatSteroid();
         if (er.ok) { ui.sportNotice = er.msg; CF.autosave(); } else ui.sportError = er.msg;
+        renderPlace(); break;
+      }
+      case "kit-opt": ui.runKit = el.getAttribute("data-kit"); renderPlace(); break;
+      case "stadium-run": {
+        ui.sportError = null; ui.sportNotice = null;
+        var beforeS = CF.sports.speed().level;
+        var sr = CF.sports.run100m(ui.runKit || "cheap");
+        if (sr.ok) {
+          ui.sportNotice = sr.msg + (sr.record ? " A new personal record!" : "");
+          if (CF.sports.speed().level !== beforeS) ui.sportNotice += " Your speed level is now " + CF.sports.speed().level + ".";
+          CF.autosave();
+        } else ui.sportError = sr.msg;
+        renderPlace(); break;
+      }
+      case "sports-steroid-legs": {
+        ui.sportError = null; ui.sportNotice = null;
+        var lr2 = CF.sports.eatSteroidLegs();
+        if (lr2.ok) { ui.sportNotice = lr2.msg; CF.autosave(); } else ui.sportError = lr2.msg;
         renderPlace(); break;
       }
       case "sports-steroid-buy": ui.sportsFac = "shop"; renderPlace(); break;

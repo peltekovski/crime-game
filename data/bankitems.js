@@ -79,7 +79,7 @@ CF.bankItemsKnown = {
   27: { name: "Amazonian alocasias",         v: 551126000 },
   28: { name: "Yellowish golden fruit palms", v: 679856000 },
   29: { name: "Siberian ivies",              v: 831926000 },
-  30: { name: "Dereema dragon trees",        v: 1010000000 },
+  30: { name: "Deremensis dragon trees",     v: 1010000000 },
   31: { name: "Red leaf cacti",              v: 1216886000 },
   32: { name: "Phoenix plants",              v: 1455536000 },
   /* -- Fish (33-40). COMPLETE. 33-38 were only seen in Estonian, so those six

@@ -24,7 +24,7 @@ CF.materials = [
   "Plums", "Lingonberries", "Redcurrants", "Yeast", "Rye", "Lemons",
   "Blue agave", "Sugar", "Tea tree leaves", "Tea tree flowers", "Raw milk",
   "Dark grapes", "Raspberries", "Vanilla", "Water", "Apples", "Pumpkin",
-  "Jackfruit", "Tikri", "Coca leaves",
+  "Jackfruit", "Gooseberries", "Coca leaves",
 ];
 
 /* Raw material -> the raw juice it presses into (Juicer #1). Only fruits whose
@@ -63,8 +63,12 @@ CF.ingredientAliases = {
   "cranberry": "Cranberries", "orange": "Oranges", "lemon": "Lemons",
   "redcurrant": "Redcurrants", "blackcurrant": "Blackcurrants",
   "grapefruit": "Grapefruits", "lingonberry": "Lingonberries",
+  "gooseberry": "Gooseberries",
   // word differences
   "tea leaves": "Tea tree leaves",
   "tea flowers": "Tea tree flowers",
   "spirits": "Spirit",   // -> the finished intermediate
+  /* Left-over machine translation: "Tikri" is tikrid, i.e. gooseberries. The
+     material is named properly now; the alias keeps any older reference working. */
+  "tikri": "Gooseberries",
 };
