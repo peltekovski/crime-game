@@ -32,16 +32,24 @@
  * ========================================================================== */
 window.CF = window.CF || {};
 
+/* TWO CATEGORIES WERE MISSING. A fuller page showed "Furniture" holding No.65
+ * and "Lamps and windows" holding No.95 — both of which we had swallowed into
+ * one enormous Sculptures block running 62-117. Sculptures is now bounded by
+ * its own confirmed members (84, 86, 88), and the two new blocks take the space
+ * either side. Their outer edges are still assumed; every named member sits
+ * inside the range it is given. */
 CF.bankItemCategories = [
   { name: "Curtains",             from: 1,   to: 10  },
   { name: "Clocks",               from: 11,  to: 20  },
   { name: "Plants",               from: 21,  to: 32  },
   { name: "Fish",                 from: 33,  to: 40  },
-  { name: "Mirrors",              from: 41,  to: 61  },
-  { name: "Sculptures",           from: 62,  to: 117 },
-  { name: "Paintings",            from: 118, to: 155 },
-  { name: "Fabergé golden eggs",  from: 156, to: 174 },
-  { name: "Book manuscripts",     from: 175, to: 200 },
+  { name: "Mirrors",              from: 41,  to: 61  },   // 54, 56, 60, 61 seen
+  { name: "Furniture",            from: 62,  to: 83  },   // 65 seen
+  { name: "Sculptures",           from: 84,  to: 94  },   // 84, 86, 88 seen
+  { name: "Lamps and windows",    from: 95,  to: 117 },   // 95 seen
+  { name: "Paintings",            from: 118, to: 155 },   // 147 seen
+  { name: "Fabergé golden eggs",  from: 156, to: 174 },   // 163, 164 seen
+  { name: "Book manuscripts",     from: 175, to: 200 },   // 185 seen
 ];
 CF.bankItemCount = 200;      // user-confirmed total
 
@@ -92,12 +100,18 @@ CF.bankItemsKnown = {
   38: { name: "Rainbow sharks",              v: 3737936000 },
   39: { name: "Neon fish",                   v: 4293686000 },
   40: { name: "Golden gouramis",             v: 4910000000 },
-  /* -- Mirrors, sculptures, paintings, eggs, manuscripts: scattered sightings. */
+  /* -- Mirrors, furniture, sculptures, lamps, paintings, eggs, manuscripts:
+   *    scattered sightings. Nos. 56, 65, 86 and 95 arrived later and are what
+   *    proved the interpolation up here has to be LINEAR — see below. */
   54: { name: "Arabian silver mirror",       v: 19088702000 },
-  60: { name: "A mirror from Atlantis",      v: 20194280000 },
+  56: { name: "Mammoth bone mirror",         v: 19457228000 },
+  60: { name: "Mirror from Atlantis",        v: 20194280000 },
   61: { name: "Mystical magic mirror",       v: 20378543000 },
+  65: { name: "Ebony bank safes",            v: 24653750000 },
   84: { name: "Bronze bear sculpture",       v: 95126450000 },
+  86: { name: "Clay sculpture of Hercules",  v: 96243818000 },
   88: { name: "Crystal Titan sculpture",     v: 97361186000 },
+  95: { name: "Ebony fan lamps",             v: 107153750000 },
   147:{ name: "Marc Chagall: The Bride",     v: 195000000000 },
   163:{ name: "Lily of the valley egg",      v: 200000000000 },
   164:{ name: "Madonna lily egg",            v: 200000000000 },
@@ -127,19 +141,29 @@ CF.bankItems = (function () {
     if (e && e.v === null) return null;              // priceless
     if (e && e.v != null) return e.v;
     if (n <= LINEAR_TO) return linear(n);
-    // between two anchors: geometric interpolation, which is how the real
-    // values move (a smooth multiplicative climb, just not a constant one)
+    /* BETWEEN TWO ANCHORS: STRAIGHT LINE, not a geometric climb.
+     * This used to interpolate geometrically, which looked right because the
+     * plants and fish (21-40) do climb multiplicatively. Four later sightings
+     * settled it for the rest of the catalogue, and they only work if the runs
+     * up here are linear:
+     *     No.56 sits between 54 and 60 -> 19,457,228,000 exactly, one third
+     *          of the way along in a straight line (geometric gives 19,450,343,000)
+     *     No.86 sits between 84 and 88 -> 96,243,818,000 exactly, the midpoint
+     *          to the digit; 86-84 and 88-86 are the same 1,117,368,000
+     * Two independent runs, both landing exactly, is enough. 21-40 keep their
+     * curve because every one of those values is listed outright, so nothing
+     * inside that stretch is interpolated at all. */
     for (var i = 1; i < anchors.length; i++) {
       if (n <= anchors[i][0]) {
         var a = anchors[i - 1], b = anchors[i];
         var t = (n - a[0]) / (b[0] - a[0]);
-        return Math.round(a[1] * Math.pow(b[1] / a[1], t));
+        return Math.round(a[1] + (b[1] - a[1]) * t);
       }
     }
-    // past the last anchor, continue at the rate the last stretch was moving
+    // past the last anchor, carry on at the step the last stretch was rising by
     var p = anchors[anchors.length - 2], q = anchors[anchors.length - 1];
-    var per = Math.pow(q[1] / p[1], 1 / (q[0] - p[0]));
-    return Math.round(q[1] * Math.pow(per, n - q[0]));
+    var step = (q[1] - p[1]) / (q[0] - p[0]);
+    return Math.round(q[1] + step * (n - q[0]));
   }
   function name(n) {
     var e = CF.bankItemsKnown[n];

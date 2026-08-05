@@ -2356,5 +2356,3 @@ select:focus-visible,
   padding: 4px 10px; font-size: 12px; justify-content: center; white-space: nowrap;
 }
 .kit-opt:hover { background: #e6ecf1; }
-/* legs get their own colour so the two energy bars are never confused */
-.ebar.legs i { background: #2e8b3d; }

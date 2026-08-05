@@ -2412,7 +2412,7 @@
         '<span class="kit-pay">about ' + fmt(pay.mean) + " points</span></span></div>";
     }).join("");
     return '<div class="sp-need" id="stadNeed">You need another <b>' + fmt(sp.pointsToLevel) + "</b> speed points to level up.</div>" +
-      '<div class="energy" id="stadEnergy">Leg energy: <span class="ebar legs"><i style="width:' + pct.toFixed(1) + '%"></i></span> ( <b>' + fmt(e) + "</b> / " + fmt(max) + " )</div>" +
+      '<div class="energy" id="stadEnergy">Leg energy: <span class="ebar"><i style="width:' + pct.toFixed(1) + '%"></i></span> ( <b>' + fmt(e) + "</b> / " + fmt(max) + " )</div>" +
       '<div class="stad-rec" id="stadRecord">' + stadRecordHtml() + "</div>" +
       '<div class="kit-title">Choose your equipment:</div>' + kits +
       '<div class="cbtn"><button class="btn" data-act="stadium-run">Run 100m</button></div>' +
@@ -2467,7 +2467,11 @@
   function shopPanel() {
     // NOTE: the reference's "buy 10 steroids for 2 credits" offer is deliberately
     // omitted — Credits are premium and nothing in this build spends them.
-    var rows = CF.sportsShop.map(function (it) {
+    /* A pass is bought once. Leaving it on the shelf afterwards meant clicking
+       it only to be told you already own it, so a sold pass leaves the list. */
+    var rows = CF.sportsShop.filter(function (it) {
+      return !(it.pass && CF.state.sports.passes[it.pass]);
+    }).map(function (it) {
       var label = it.label + (it.note ? " (" + it.note + ")" : it.req ? " (requires " + it.req.level + "+ " + it.req.stat.toLowerCase() + ")" : it.adds ? " (adds " + it.adds + " points)" : "");
       // ENTER items are facility passes, not equipment — shaded darker to stand apart
       return '<tr class="shoprow' + (it.pass ? " passrow" : "") + '" data-act="sports-buy" data-item="' + esc(it.label) + '">' +
@@ -3579,6 +3583,7 @@
     var S = CF.state.sports;
     CF.sports.regenEnergy();
     var e = S.handEnergy || 0, emax = CF.sports.maxHandEnergy(), epct = Math.max(0, Math.min(100, e / emax * 100));
+    var le = S.legEnergy || 0, lemax = CF.sports.maxLegEnergy(), lpct = Math.max(0, Math.min(100, le / lemax * 100));
     var run = CF.sports.runState();
     var steroidLeft = Math.max(0, 86400000 - (Date.now() - (S.lastSteroidBuy || 0)));
 
@@ -3597,8 +3602,18 @@
         (B.mining ? box("Mining information", [
           "Battery charge: <b>100</b> %", "Battery charging: <b>00:00:00</b>", "Progress to map update: <b>72.1</b> %"]) : "") +
         box("Sports complex information", [
-          { act: "acc-sports", fac: "gym",
-            html: 'Hand energy: <span class="ebar"><i style="width:' + epct.toFixed(1) + '%"></i></span> <b>' + fmt(e) + "</b> / " + fmt(emax) },
+          /* THE ENERGY BARS FOLLOW THE PASSES. A fresh account has neither, and
+             showing hand energy anyway advertised a facility you cannot enter
+             and gave you a link straight into its locked screen. Each bar
+             appears the moment you buy the ticket that opens its building. */
+          /* Laid out exactly like the villas/sewer move rows — label, bar,
+             value on one grid, all the same colour. Two bars in two different
+             styles sitting one above the other looked like an accident. */
+          ].concat(CF.sports.access("gym") === "ON" ? [
+          { act: "acc-sports", fac: "gym", html: barLine("Hand energy", e, emax) }] : [])
+          .concat(CF.sports.access("stadium") === "ON" ? [
+          { act: "acc-sports", fac: "stadium", html: barLine("Leg energy", le, lemax) }] : [])
+          .concat([
           { act: "acc-sports", fac: "trail",
             html: run ? 'You are still training your endurance <b id="accRun">' + hms(CF.sports.runSecondsLeft()) + "</b>"
                       : "You are <b>not</b> training your endurance" },
@@ -3607,7 +3622,7 @@
                                   : "You can buy steroids in the store <b>NOW</b> !" },
           /* No power/endurance row: both already have their own sidebar lines,
              and repeating them here is noise. */
-        ]) +
+        ])) +
         (showGarden ? box("Garden information", gardenAccRows()) : "") +
       "</div><div>" +
         (B.houseSewer ? box("Villas and sewer information", [
@@ -4292,7 +4307,7 @@
    * which is how Cooking and Medical science went untestable for a while. */
   var DBG_SKILLS = ["Barkeeping", "Crafting", "Smithing", "Chemist", "Stealing",
                     "Gardening", "Cooking", "Medical science", "Endurance", "Strength",
-                    "Weapon handling"];
+                    "Speed", "Weapon handling"];
   function dbgSkillLevel(sk) {
     return sk === "Barkeeping" ? CF.state.player.drinkMasterLevel
          : sk === "Crafting" ? CF.craft.progress().level
@@ -4303,7 +4318,9 @@
          : sk === "Cooking" ? CF.canteen.progress().level
          : sk === "Medical science" ? CF.medicine.progress().level
          : sk === "Endurance" ? CF.sports.endurance().level
-         : sk === "Strength" ? CF.sports.power().level : 1;
+         : sk === "Strength" ? CF.sports.power().level
+         : sk === "Speed" ? CF.sports.speed().level
+         : sk === "Weapon handling" ? CF.houses.weaponHandling().level : 1;
   }
 
   /* ---- Time travel ------------------------------------------------------
@@ -4389,6 +4406,14 @@
           dbgToggle("Tavern owned (opens the Canteen)", !!p.tavernOwned, "dbg-tog", "tavernOwned") +
           dbgToggle("Gardener claimed", !!G.isGardener, "dbg-tog", "gardener") +
           dbgToggle("Fishing vessel owned", !!CF.state.harbor.owned, "dbg-tog", "ship") +
+        "</div></div>" +
+        dbgNum("Leg energy", "dbgLegEnergy", S.legEnergy || 0, "dbg-set-legenergy", ' min="0" max="' + CF.sports.maxLegEnergy() + '"') +
+        /* The three sports passes gate whole buildings, and each one also
+           decides whether its energy bar shows up on the account overview. */
+        '<div class="field"><label>Sports passes (each opens its building)</label><div class="dbg-togs">' +
+          dbgToggle("Gym", !!S.passes.gym, "dbg-tog-sport", "gym") +
+          dbgToggle("Stadium", !!S.passes.stadium, "dbg-tog-sport", "stadium") +
+          dbgToggle("Boxing Hall", !!S.passes.boxing, "dbg-tog-sport", "boxing") +
         "</div></div>" +
         '<div class="field"><label>Slum passes (the Betting Bunker needs one)</label><div class="dbg-togs">' +
           CF.ruleset.slumPasses.map(function (sp) {
@@ -4509,6 +4534,7 @@
     // the bar's size follows the level on its own now; just refill it
     else if (skill === "Endurance") { CF.state.sports.durabilityPoints = CF.formulas.xpToReachLevelFor("Endurance", level); p.durabilityCur = CF.sports.enduranceMax(); }
     else if (skill === "Strength") { CF.state.sports.powerPoints = CF.formulas.xpToReachLevelFor("Strength", level); }
+    else if (skill === "Speed") { CF.state.sports.speedPoints = CF.formulas.xpToReachLevelFor("Speed", level); }
     // the two that were missing: both store LIFETIME points like the rest
     else if (skill === "Cooking") { CF.state.canteen.cookPoints = CF.formulas.xpToReachLevelFor("Cooking", level); }
     else if (skill === "Medical science") { CF.state.medicine.points = CF.formulas.xpToReachLevelFor("Medical science", level); }
@@ -4919,6 +4945,14 @@
         CF.state.slumPasses[pid] = !CF.state.slumPasses[pid];
         dbgApplied("Slum pass"); break;
       }
+      case "dbg-tog-sport": {
+        var spid = el.getAttribute("data-what");
+        CF.state.sports.passes[spid] = !CF.state.sports.passes[spid];
+        dbgApplied("Sports pass"); break;
+      }
+      case "dbg-set-legenergy":
+        CF.state.sports.legEnergy = Math.max(0, Math.min(CF.sports.maxLegEnergy(), num("dbgLegEnergy", 0)));
+        dbgApplied("Leg energy"); break;
       case "dbg-tog-built": {
         var bk2 = el.getAttribute("data-what");
         CF.ruleset.built[bk2] = !CF.ruleset.built[bk2];

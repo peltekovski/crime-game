@@ -97,7 +97,12 @@ CF.loadLateGame = function () {
   CF.seedLateGarden(s);
   s.sports.durabilityPoints = f.xpToReachLevelFor("Endurance", 38);
   s.sports.powerPoints = f.xpToReachLevelFor("Strength", 13);
-  s.sports.passes = { gym: true, stadium: false, boxing: false };
+  /* Speed 11 — the level every stadium sample was taken at, so the payouts on
+     this profile are the ones we can check against the real thing. */
+  s.sports.speedPoints = f.xpToReachLevelFor("Speed", 11);
+  s.sports.legEnergy = CF.ruleset.speedRun.legEnergyMax;
+  // both trainable buildings open, so the gym and the stadium are testable at once
+  s.sports.passes = { gym: true, stadium: true, boxing: false };
   // canteen: Cooking 2 with the reference's 1,000 points into it, plus enough
   // dairy and fish to work both cooking tables (the Seaport isn't built yet)
   s.canteen.cookPoints = f.xpToReachLevelFor("Cooking", 2) + 1000;

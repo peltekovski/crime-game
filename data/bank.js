@@ -183,8 +183,34 @@ CF.bank = (function () {
    * And the sharp edge: LET ONE ITEM ROT TO 0 AND THE BANK SHUTS. No interest
    * at all until you have maintained it, which is what makes the upkeep matter
    * rather than being a chore you can ignore. */
+  /* REPUTATION COMES FROM WHAT THE COLLECTION IS WORTH, not how many pieces
+   * are in it. We had it as items x a flat rate x level, which fitted the one
+   * reading we had. Three readings later it plainly does not:
+   *     30 items -> 27,420,000     35 items -> 33,220,000     37 -> 35,760,000
+   * The last two are 2 items apart but 2,540,000 apart, while the first pair
+   * average 1,160,000 an item — no per-item rate reconciles them, because the
+   * two items added were not worth the same as the five before them.
+   *
+   * Value does reconcile it. The 37-item collection was fully itemised, and its
+   * pieces plus the vaults total 715,054,029,000 CC, which is 20,000 times the
+   * quoted reputation to within 0.02%. The old formula was out by 5.4% on the
+   * same account.
+   *
+   * TWO THINGS ARE STILL OPEN. The last 0.02% (about 146,000,000 CC of value)
+   * is unexplained — the priceless manuscript contributing something is the
+   * obvious suspect, but nothing pins it. And whether bank LEVEL multiplies
+   * this cannot be told apart from the divisor, because every reading is from a
+   * level-2 bank; the level term is left out rather than invented. */
+  function collectionValue() {
+    var t = 0;
+    ownedNumbers().forEach(function (n) {
+      var v = CF.bankItems.value(n);
+      if (v) t += v;                       // priceless items carry no number
+    });
+    return t + (CF.vaults ? CF.vaults.value() : 0);
+  }
   function reputation() {
-    return Math.round(itemTotal() * R().reputationPerItem * level());
+    return Math.round(collectionValue() / R().reputationPerValue);
   }
   function clientsHold() {
     var v = CF.state.bankClients;
